@@ -1,6 +1,6 @@
-# {{ learn-git-in-month-of-lunches }}
+# 独習Gitを読んでいく
 
-**Date:** {{ 2024/07/27 }}
+**Date:** 2024/07/27
 
 ## chap1
 - シラバス的なもの
@@ -567,3 +567,213 @@ e68c5e3 (new_feature) Starting a second new file
   - git clone --bareで作成できる
   - リモートリポジトリとして使える
   - リモートリポジトリとして使う場合は.gitを削除してリネームする
+
+```
+(つ・ω・)つgit clone --bare math math.git                                                [master]
+Cloning into bare repository 'math.git'...
+done.
+(base) /Users/stanaka/tmp/buildtools 24-07-31 12:30:20
+(つ・ω・)つcd math.git                                                                   [master]
+fatal: this operation must be run in a work tree
+(base) /Users/stanaka/tmp/buildtools/math.git 24-07-31 12:30:27
+(つ・ω・)つls -F                                                                         [master]
+ config   HEAD   hooks/   objects/   packed-refs   refs/
+```
+
+-- git ls-treeはツリーを表示する
+```
+(つ・ω・)つgit ls-tree HEAD                                                              [master]
+100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391	a
+100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391	c
+100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391	d
+100644 blob c591e722ee93485c7ecd81a93c45f75529ae2046	math.sh
+100644 blob 52407b0c491cdeef109b6d9ef132729e360d4c6b	readme.txt
+```
+
+## chap12
+- git remote renameでリモートリポジトリの名前を変更できる
+```
+(つ・ω・)つgit remote rename origin beginning                                            [master]
+Renaming remote references: 100% (5/5), done.
+(base) /Users/stanaka/tmp/buildtools/math.clone 24-07-31 12:52:01
+(つ・ω・)つgit branch --all                                                              [master]
+* master
+ remotes/beginning/HEAD -> beginning/master
+ remotes/beginning/another_fix_branch
+ remotes/beginning/master
+ remotes/beginning/new_feature
+(base) /Users/stanaka/tmp/buildtools/math.clone 24-07-31 12:52:08
+(つ・ω・)つgit remote -v show                                                            [master]
+beginning	/Users/stanaka/tmp/buildtools/math.git (fetch)
+beginning	/Users/stanaka/tmp/buildtools/math.git (push)
+```
+
+これはbobのリモートリポジトリを追加する
+```
+git remote add bob ../math.bob
+```
+
+- git ls-remoteでリモートリポジトリの情報を表示できる
+```
+(つ・ω・)つgit ls-remote .                                                               [master]
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	HEAD
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	refs/heads/master
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	refs/remotes/origin/HEAD
+1443c681ad3f9b3854c2636347509080fad12bc3	refs/remotes/origin/another_fix_branch
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	refs/remotes/origin/master
+e68c5e3359fc8beaf256dfd3b3f9d9f83cecfef9	refs/remotes/origin/new_feature
+```
+
+- bobリポジトリでファイルをコミットした後にcarolリポジトリでgit ls-remoteを実行しるとSHA１が異なる
+```
+(base) /Users/stanaka/tmp/buildtools/math.carol 24-07-31 13:01:40
+ (つ・ω・)つgit ls-remote bob                                                             [master]
+9546bd738bd42de88ce003290ab0efc7f16fa2d2	HEAD
+9546bd738bd42de88ce003290ab0efc7f16fa2d2	refs/heads/master
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	refs/remotes/origin/HEAD
+1443c681ad3f9b3854c2636347509080fad12bc3	refs/remotes/origin/another_fix_branch
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	refs/remotes/origin/master
+e68c5e3359fc8beaf256dfd3b3f9d9f83cecfef9	refs/remotes/origin/new_feature
+(base) /Users/stanaka/tmp/buildtools/math.carol 24-07-31 13:01:48
+ (つ・ω・)つgit ls-remote .                                                               [master]
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	HEAD
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	refs/heads/master
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	refs/remotes/origin/HEAD
+1443c681ad3f9b3854c2636347509080fad12bc3	refs/remotes/origin/another_fix_branch
+9c5a30efeb6937e32af4995df1a4daaaec37dac2	refs/remotes/origin/master
+e68c5e3359fc8beaf256dfd3b3f9d9f83cecfef9	refs/remotes/origin/new_feature
+```
+
+## chap13
+- git pushについて
+- masterブランチのSHA1が9c5a30e→1b478f4に変わった
+```
+(つ・ω・)つgit push origin master                                                        [master]
+Enumerating objects: 4, done.
+Counting objects: 100% (4/4), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (2/2), done.
+Writing objects: 100% (3/3), 296 bytes | 296.00 KiB/s, done.
+Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
+To /Users/stanaka/tmp/buildtools/math.git
+   9c5a30e..1b478f4  master -> master
+```
+
+- リモートからブランチを削除するのは
+```
+(つ・ω・)つgit ls-remote origin                                                          [master]
+1b478f4936075d4d8b8c149c894ceb862eb86506	HEAD
+4c7b8729e08b985efdf9a94217e5160bf7a34335	refs/heads/another_fix_branch
+1b478f4936075d4d8b8c149c894ceb862eb86506	refs/heads/master
+1b478f4936075d4d8b8c149c894ceb862eb86506	refs/heads/new_branch
+e68c5e3359fc8beaf256dfd3b3f9d9f83cecfef9	refs/heads/new_feature
+(base) /Users/stanaka/tmp/buildtools/math.carol 24-08-01 4:04:34
+ (つ・ω・)つgit push origin :new_branch                                                   [master]
+To /Users/stanaka/tmp/buildtools/math.git
+ - [deleted]         new_branch
+```
+
+## chap14
+- git fetchでリモートリポジトリの情報を取得する
+```
+(base) /Users/stanaka/tmp/buildtools/math.carol 24-08-01 7:56:27
+ (つ・ω・)つgit log --decorate --oneline --all                                            [master]
+2eb0197 (HEAD -> master, origin/master, origin/HEAD) Small change
+1443c68 (origin/another_fix_branch) Merge branch 'master' into another_fix_branch
+36bf1ad chap9 lecture
+9c5a30e A small update to readme.
+e68c5e3 (origin/new_feature) Starting a second new file
+92a7ca3 Adding a new file to a new branch
+2fb2547 Removed a and b
+6404e5a Adding readme.txt
+6adeab0 Adding four empty files
+0586e5e This is the cecond commit
+2145a3c This the first commit.
+(base) /Users/stanaka/tmp/buildtools/math.carol 24-08-01 7:56:37
+ (つ・ω・)つgit fetch                                                                     [master]
+remote: Enumerating objects: 5, done.
+remote: Counting objects: 100% (5/5), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
+Unpacking objects: 100% (3/3), 259 bytes | 259.00 KiB/s, done.
+From /Users/stanaka/tmp/buildtools/math
+   2eb0197..f7b8b7c  master     -> origin/master
+(base) /Users/stanaka/tmp/buildtools/math.carol 24-08-01 7:58:41
+ (つ・ω・)つgit log --decorate --oneline --all                                            [master]
+f7b8b7c (origin/master, origin/HEAD) Another tiny change
+2eb0197 (HEAD -> master) Small change
+1443c68 (origin/another_fix_branch) Merge branch 'master' into another_fix_branch
+36bf1ad chap9 lecture
+9c5a30e A small update to readme.
+e68c5e3 (origin/new_feature) Starting a second new file
+92a7ca3 Adding a new file to a new branch
+2fb2547 Removed a and b
+6404e5a Adding readme.txt
+6adeab0 Adding four empty files
+0586e5e This is the cecond commit
+2145a3c This the first commit.
+```
+
+- HEADとFETCH_HEADを比較する
+```
+(つ・ω・)つgit diff HEAD..FETCH_HEAD                                                     [master]
+diff --git a/another_rename b/another_rename
+index 86d347f..fb7f0ae 100644
+--- a/another_rename
++++ b/another_rename
+@@ -1 +1,2 @@
+Small change
++Tiny change
+```
+
+- mergeする
+```
+(つ・ω・)つgit merge FETCH_HEAD                                                          [master]
+Updating 2eb0197..f7b8b7c
+Fast-forward
+another_rename | 1 +
+1 file changed, 1 insertion(+)
+```
+
+- git pullはfetchとmergeを一度に行う
+```
+(つ・ω・)つgit push                                                                      [master]
+Enumerating objects: 5, done.
+Counting objects: 100% (5/5), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (2/2), done.
+Writing objects: 100% (3/3), 285 bytes | 285.00 KiB/s, done.
+Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
+To /Users/stanaka/tmp/buildtools/math.git
+  f7b8b7c..7b017b7  master -> master
+```
+
+- git config pull.ff onlyでfast-forwardのみを許可する
+
+[caution]
+- git pullよりもgit fetchとgit merge FETCH_HEADの方が安全
+
+## chap15
+- git log --parentsでマージコミットの親を表示する
+```
+f919f6c c4a172b 777fe2d (HEAD -> master, origin/master, origin/HEAD) Merge branch 'master' of /Users/stanaka/tmp/buildtools/math
+c4a172b 2d668f2 syuusei
+2d668f2 c9c80e2 DEF (on carol)
+777fe2d c9c80e2 ABC (ob bill)
+c9c80e2 ea79961 Alphabet (on carol)
+ea79961 1a0eeba 6cb7640 Merge branch 'master' of /Users/stanaka/tmp/buildtools/math
+1a0eeba 35f6660 6c0bfec Merge remote-tracking branch 'refs/remotes/origin/master'
+6cb7640 6c0bfec Alphabet (on bill)
+35f6660 fefe51b ABC part of alphabet
+6c0bfec 7b017b7 JKL part of alphabet
+7b017b7 f7b8b7c Small change 2 from bill
+fefe51b f7b8b7c Small change 2 from carol
+f7b8b7c 2eb0197 Another tiny change
+2eb0197 9c5a30e Small change
+9c5a30e 2fb2547 A small update to readme.
+2fb2547 6404e5a Removed a and b
+6404e5a 6adeab0 Adding readme.txt
+6adeab0 0586e5e Adding four empty files
+0586e5e 2145a3c This is the cecond commit
+2145a3c This the first commit.
+```

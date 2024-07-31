@@ -1,6 +1,6 @@
-# {{ docker-kubernetes-basic }}
+# docker-kubernetes-basic
 
-**Date:** {{ 2024/07/27 }}
+**Date:**  2024/07/27
 
 ## TL;DR
 Dockerの基本的な使い方を学ぶにはとてもよかった。
