@@ -777,3 +777,57 @@ f7b8b7c 2eb0197 Another tiny change
 0586e5e 2145a3c This is the cecond commit
 2145a3c This the first commit.
 ```
+
+- git log --since mm/dd/yyyy --until mm/dd/yyyyで期間を指定して表示する
+```
+(つ・ω・)つgit log --since 7/1/2024 --until 7/31/2024
+```
+
+- git log --stat HEAD^..HEADで直前のコミットの変更を表示する
+```
+(つ・ω・)つgit log --stat HEAD^..HEAD
+commit 4465c540dc79718076bcf66951d27fb65152a895 (HEAD -> master, origin/master, origin/HEAD)
+Author: Rick Umali <rickumali@gmail.com>
+Date:   Wed Aug 6 08:54:56 2014 -0500
+
+    A small update to readme.
+
+ readme.txt | 1 +
+ 1 file changed, 1 insertion(+)
+ ```
+
+ - ^(キャレット)は直前のコミットを指す
+
+ - git branch --columnでブランチを表示する
+ ```
+ (つ・ω・)つgit branch --column                                                          [master]
+   branch_01   branch_07   branch_13   branch_19   branch_25   branch_31   branch_37
+   branch_02   branch_08   branch_14   branch_20   branch_26   branch_32   branch_38
+   branch_03   branch_09   branch_15   branch_21   branch_27   branch_33   branch_39
+   branch_04   branch_10   branch_16   branch_22   branch_28   branch_34   branch_40
+   branch_05   branch_11   branch_17   branch_23   branch_29   branch_35 * master
+   branch_06   branch_12   branch_18   branch_24   branch_30   branch_36
+```
+
+- git blameでファイルの変更履歴を表示する
+```
+(つ・ω・)つgit blame math.sh                                                            [master]
+^2145a3c (shooonng 2024-07-28 12:18:02 +0900 1) # Comment
+0586e5e4 (shooonng 2024-07-28 12:22:13 +0900 2) a=1
+6adeab03 (shooonng 2024-07-28 12:36:47 +0900 3) b=2
+```
+
+- git notes addでノートを追加する
+```
+git notes add -m "This is an attached note"
+git log -n 1                                                                 [master]
+commit f919f6cdcaf375a23630a11450713b743206b85e (HEAD -> master, origin/master, origin/HEAD)
+Merge: c4a172b 777fe2d
+Author: shooonng <5511068t@gmail.com>
+Date:   Thu Aug 1 08:39:32 2024 +0900
+
+    Merge branch 'master' of /Users/stanaka/tmp/buildtools/math
+
+Notes:
+    This is an attached note
+```
