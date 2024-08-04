@@ -2,6 +2,13 @@
 
 **Date:** 2024/07/27
 
+## 所感
+Gitの使い方を学ぶのにはいい本だと思うが、ある程度Gitを使った開発経験がある人には少し物足りないかもなと感じた。
+ただ、GUIツールが復旧している昨今、CLIでのGit操作を学ぶことでクリック一つでできることが何をしているのか理解できるのはいいと思う。
+実際仕事ではGUIツールを使っていたが、この本を読んでCLIを使う機会が増えた。（git rebase & squashの関係でCLIの使用は必須なのだが）
+個人的に良かったのは16章のrebaseの説明だった。
+プロジェクトでrebaseを使う機会があり学びたかったので、この章のために読んだと言っても過言ではない。
+
 ## chap1
 - シラバス的なもの
 - 進め方が書いてある
@@ -831,3 +838,209 @@ Date:   Thu Aug 1 08:39:32 2024 +0900
 Notes:
     This is an attached note
 ```
+
+## chap16
+- git rebaseについて
+  - マージコミットを避ける
+  - ブランチをきれいに保つ
+  - リベースしたコミットを修正する
+  - リベースしたコミットを削除する
+
+- rebase前
+```
+git graph                                                                     [master]
+* 74733a5  (HEAD -> master) 2024-08-03 shooonng A small update to readme.
+| * 4d95a98  (new_feature) 2024-08-03 shooonng Starting a second new file
+| * 35103b9  2024-08-03 shooonng Adding a new file to a new branch
+|/
+* 0db75f2  2024-08-03 shooonng Adding printf.
+* eb93260  2024-08-03 shooonng Adding two numbers.
+```
+
+- rebase
+```
+git rebase master
+```
+
+- rebase後
+```
+git graph                                                                [new_feature]
+* 37a762e  (HEAD -> new_feature) 2024-08-03 shooonng Starting a second new file
+* 548b719  2024-08-03 shooonng Adding a new file to a new branch
+* 74733a5  (master) 2024-08-03 shooonng A small update to readme.
+* 0db75f2  2024-08-03 shooonng Adding printf.
+* eb93260  2024-08-03 shooonng Adding two numbers.
+```
+
+- git reflogでリベースしたコミットを表示する
+```
+(つ・ω・)つgit reflog                                                               [new_feature]
+37a762e (HEAD -> new_feature) HEAD@{0}: checkout: moving from master to new_feature
+74733a5 (master) HEAD@{1}: checkout: moving from new_feature to master
+37a762e (HEAD -> new_feature) HEAD@{2}: rebase (finish): returning to refs/heads/new_feature
+37a762e (HEAD -> new_feature) HEAD@{3}: rebase (pick): Starting a second new file
+548b719 HEAD@{4}: rebase (pick): Adding a new file to a new branch
+74733a5 (master) HEAD@{5}: rebase (start): checkout master
+```
+
+- git reset hardでリベース前に戻す
+
+- git rebase --interactive masterでインタラクティブリベースを行う
+  - vimが起動する
+  - squashでコミットを統合する
+
+- 実際にsquashする前
+```
+git log -n 2 --stat --oneline                                            [new_feature]
+c2498a9 (HEAD -> new_feature) Starting a second new file
+ file3.c | 1 +
+ 1 file changed, 1 insertion(+)
+ba822ee Adding a new file to a new branch
+ newfile.txt | 1 +
+ 1 file changed, 1 insertion(+)
+```
+
+- 実際にsquashした後
+- 2つのコミットが1つにまとめられる
+```
+git log -n 1 --stat                                                      [new_feature]
+commit 6a0aff70d3501772b6901abc92b5bb0cf13a8baa (HEAD -> new_feature)
+Author: shooonng <5511068t@gmail.com>
+Date:   Sat Aug 3 20:06:23 2024 +0900
+
+    Adding a new file to a new branch
+
+    Starting a second new file
+
+ file3.c     | 1 +
+ newfile.txt | 1 +
+ 2 files changed, 2 insertions(+)
+```
+
+- git cherry-pickでコミットを適用する
+  - ブランチをまたいでコミットを適用する
+```
+(つ・ω・)つgit graph                                                                     [master]
+* c8874bf  (HEAD -> master) 2024-08-03 shooonng A small update to readme.
+| * 400ff56  (new_feature) 2024-08-03 shooonng Starting a second new file
+| * ec4760a  2024-08-03 shooonng Adding a new file to a new branch
+|/
+* ebf2828  2024-08-03 shooonng Adding printf.
+* 2956fb5  2024-08-03 shooonng Adding two numbers.
+* f3f0f2a  (another_fix_branch) 2024-08-03 shooonng Renaming c and d.
+* 8147846  2024-08-03 shooonng Removed a and b.
+* b1cb266  2024-08-02 shooonng Adding readme.txt
+* e4dc86f  (tag: four_files_galore) 2024-08-01 shooonng Adding four empty files.
+* 5a72f6b  2024-08-01 shooonng Adding b variable.
+* 9bd8948  2024-08-01 shooonng This is the second commit.
+* a5084af  2024-08-01 shooonng This is the first commit.
+(base) /Users/stanaka/tmp/buildtools/math 24-08-04 8:18:52
+ (つ・ω・)つgit cherry-pick 400ff56                                                       [master]
+[master ad4aca5] Starting a second new file
+ Date: Sat Aug 3 21:18:41 2024 +0900
+ 1 file changed, 1 insertion(+)
+ create mode 100644 file3.c
+(base) /Users/stanaka/tmp/buildtools/math 24-08-04 8:19:06
+ (つ・ω・)つgit graph                                                                     [master]
+* ad4aca5  (HEAD -> master) 2024-08-03 shooonng Starting a second new file
+* c8874bf  2024-08-03 shooonng A small update to readme.
+| * 400ff56  (new_feature) 2024-08-03 shooonng Starting a second new file
+| * ec4760a  2024-08-03 shooonng Adding a new file to a new branch
+|/
+* ebf2828  2024-08-03 shooonng Adding printf.
+* 2956fb5  2024-08-03 shooonng Adding two numbers.
+* f3f0f2a  (another_fix_branch) 2024-08-03 shooonng Renaming c and d.
+* 8147846  2024-08-03 shooonng Removed a and b.
+* b1cb266  2024-08-02 shooonng Adding readme.txt
+* e4dc86f  (tag: four_files_galore) 2024-08-01 shooonng Adding four empty files.
+* 5a72f6b  2024-08-01 shooonng Adding b variable.
+* 9bd8948  2024-08-01 shooonng This is the second commit.
+* a5084af  2024-08-01 shooonng This is the first commit
+```
+
+## chap17
+- git flowとgithub flowの違い
+  - git flow
+    - developブランチを使う
+    - featureブランチを使う
+    - releaseブランチを使う
+    - hotfixブランチを使う
+  - github flow
+    - masterブランチを使う
+    - featureブランチを使う
+    - pull requestを使う
+
+  ## chap18
+  - GitHubについて
+  - フォーク
+    - 他のリポジトリを自分のリポジトリにコピーする
+  - プロジェクトで使ってるので、詳細は省略
+
+## chap19
+- SourceTreeなどのサードパーティ製のツールについて
+- SourceTreeは使ってるのと、Eclipseはもう時代遅れなので省力
+
+## chap20
+- git configについて
+  - local, global, systemの3つの設定がある
+  - local
+    - リポジトリごとの設定
+    - .git/configに保存される
+  - global
+    - ユーザごとの設定
+    - ~/.gitconfigに保存される
+  - system
+    - システム全体の設定
+    - /etc/gitconfigに保存される
+
+- ある程度長くGitの設定を触っているのでGitConfigについては設定してある。globalの設定はこんな感じ
+```
+github.user=jacoloves
+core.editor=nvim
+core.preloadindex=true
+core.excludesfile=/Users/stanaka/.gitignore_global
+color.ui=auto
+color.diff.meta=242 238
+color.diff.frag=239 236
+color.diff.old=167 normal
+color.diff.new=030 normal
+color.diff.context=240
+color.diff.commit=246 024
+alias.st=status
+alias.co=checkout
+alias.ci=commit
+alias.br=switch
+alias.lo=log --color --max-count=15 --oneline
+alias.ll=lla --first-parent
+alias.lla=log --graph --date=human --format='%C(#e3c78a)%h%C(#ff5454)%d%C(reset) - %C(#36c692)(%ad)%C(reset) %s %C(#80a0ff){%an}%C(reset)'
+alias.graph=log --graph --date-order --all --pretty=format:'%h %Cred%d %Cgreen%ad %Cblue%cn %Creset%s' --date=short
+alias.unadd=restore --staged
+alias.review=diff origin/HEAD...
+alias.rvf=diff origin/HEAD... --name-only
+alias.rvc=log --oneline ...origin/HEAD
+help.autocorrect=1
+user.email=5511068t@gmail.com
+user.name=shooonng
+secrets.providers=git secrets --aws-provider
+secrets.patterns=(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}
+secrets.patterns=("|')?(AWS|aws|Aws)?_?(SECRET|secret|Secret)?_?(ACCESS|access|Access)?_?(KEY|key|Key)("|')?\s*(:|=>|=)\s*("|')?[A-Za-z0-9/\+=]{40}("|')?
+secrets.patterns=("|')?(AWS|aws|Aws)?_?(ACCOUNT|account|Account)_?(ID|id|Id)?("|')?\s*(:|=>|=)\s*("|')?[0-9]{4}\-?[0-9]{4}\-?[0-9]{4}("|')?
+init.templatedir=~/.git-templates/git-secrets
+filter.lfs.clean=git-lfs clean -- %f
+filter.lfs.smudge=git-lfs smudge -- %f
+filter.lfs.process=git-lfs filter-process
+filter.lfs.required=true
+safe.directory=/Users/stanaka/tmp/new_lab/2024/remix-tutorial
+difftool.sourcetree.cmd=opendiff "$LOCAL" "$REMOTE"
+difftool.sourcetree.path=
+mergetool.sourcetree.cmd=/Applications/Sourcetree.app/Contents/Resources/opendiff-w.sh "$LOCAL" "$REMOTE" -ancestor "$BASE" -merge "$MERGED"
+mergetool.sourcetree.trustexitcode=true
+push.default=simple
+```
+
+## Gitの学習を続けるのに役立つテクニック
+1. クローンで作業する
+2. ヘルプを使う
+3. こまめにコミットする
+  - git rebaseを使えば、レビューの前に小規模で中間的なコミットをまとめることができる
+4. 共同作業を行う
