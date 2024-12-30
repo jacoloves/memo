@@ -396,3 +396,16 @@ Docker Hubのイメージを使用する場合は`verified_publisher`を使う
 
 ## 6章
 セキュアなコンテナ環境の構築
+
+- コンテナのセキュリティ監視
+  - ソフトウェアで監視
+    - Sysdig
+    - Falco
+    - Fluentd/Fluent Bit
+- コンテナのログ収集の設計
+- コンテナの操作ログの記録
+- セキュアに運用するためのガイドラインがある
+  - CISベンチマーク
+  - NIST SP800-190
+  - OWASP Docker Security Cheat Sheet
+- アプリケーションログやイメージレジストリの監視
