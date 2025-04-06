@@ -19,17 +19,17 @@ Elasticsearch,Kibana,Beats,Logstashの4つのコアソリューションをElast
 https://hub.docker.com/_/Elasticsearch
 
 docker-hubからpullしてくる。
-```
+```sh
 docker pull elasticsearch
 ```
 
 最新のelasticsearchをpull使用すると存在しないとエラーになった。
-```
+```sh
 Error response from daemon: manifest for elasticsearch:latest not found: manifest unknown: manifest unknown
 ```
 
 tagから最新のバージョンを調べて取得してきた。（8.17.4が最新だった）
-```
+```sh
 docker pull elasticsearch:8.17.4
 ```
 
@@ -67,12 +67,12 @@ volumes:
 ```
 
 ビルドする
-```
+```sh
 docker-compose up -d --build
 ```
 
 curlコマンド
-```
+```sh
 ♥ ❯ curl http://localhost:9200
 {
   "name" : "1a34d95fa296",
@@ -131,7 +131,7 @@ volumes:
 
 http:localhost:5601にアクセスすると以下のように画面が開く。
 
-[./img/elasticsearch-python-tutorial/kibana-page-first.png]
+![elasticsearch](./img/elasticsearch-python-tutorial/kibana-page-first.png)
 
 ### Elasticsearch security
 バージョン6.8以降では、Elasticsearch Securityと呼ばれるセキュリティ機能がついた。
@@ -139,13 +139,13 @@ ElasticsearchおよびKibanaに接続する際はID/PWを求めるようにな�
 
 以下を設定するとセキュリティ機能が有効になる。
 今回はローカルでの検証が主になるので割愛する。
-```
+```sh
 xpack.security.enabled: true
 ```
 
 kibanaからelasticsearchに接続する場合は。認証情報の設定が必要。
 `config/kibana.yml`に記載する。
-```
+```sh
 elasticsearch.username: "kibana"
 elasticsearch.password: "xxxxxxxxxx"
 ```
@@ -170,7 +170,7 @@ PUT /book/_doc/1
 ```
 
 以下のレスポンスが返ってきてドキュメントが作成される。
-```
+```json
 {
   "_index": "book",
   "_id": "1",
@@ -198,7 +198,7 @@ POST /book/_doc/
 }
 ```
 レスポンスは以下になる。
-```
+```json
 {
   "_index": "book",
   "_id": "semABJYBVRBE8arB10LK",
@@ -216,14 +216,14 @@ POST /book/_doc/
 
 GETメソッドでドキュメントを取得する。
 
-```
+```json
 GET /book/_doc/1
 ```
 
 ドキュメントIDが1のドキュメントが返ってくる。
 ドキュメントの内容は、`_source`の中に含まれる。
 リクエストしたドキュメントが見つかった場合は`found`が`true`になる。
-```
+```json
 {
   "_index": "book",
   "_id": "1",
@@ -242,7 +242,7 @@ GET /book/_doc/1
 ```
 
 ドキュメントを更新したい場合、`[インデックス名/_update/[ドキュメントID]]`にたしてPOSTメソッドでリクエストする。
-```
+```json
 POST /book/_update/1
 {
     "doc": {
@@ -252,7 +252,7 @@ POST /book/_update/1
 ```
 レスポンスは以下になる。
 更新された時はresultの値がupdatedになる。
-```
+```json
 {
   "_index": "book",
   "_id": "1",
@@ -269,11 +269,11 @@ POST /book/_update/1
 ```
 
 ドキュメントを取得する。
-```
+```json
 GET /book/_doc/1
 ```
 レスポンスは以下のようなり、更新されている。
-```
+```json
 {
   "_index": "book",
   "_id": "1",
@@ -292,12 +292,12 @@ GET /book/_doc/1
 ```
 
 ドキュメントを削除するには`[インデックス名]/_doc/[ドキュメントID]`にDELETEメソッドでリクエストする。
-```
+```json
 DELETE /book/_doc/1
 ```
 レスポンスは以下のようになる。
 resultがdeletedになり、ドキュメントが削除されていることを確認できる。
-```
+```json
 {
   "_index": "book",
   "_id": "1",
@@ -314,11 +314,11 @@ resultがdeletedになり、ドキュメントが削除されていることを�
 ```
 
 ドキュメントを取得する。
-```
+```json
 GET /book/_doc/1
 ```
 レスポンスのfoundがfalseになってるので、ドキュメントが削除されたことが確認できる。
-```
+```json
 {
   "_index": "book",
   "_id": "1",
@@ -328,7 +328,7 @@ GET /book/_doc/1
 
 ### インデックスの操作
 `[インデックス名]`に対して、GETメソッドでリクエストする。
-```
+```json
 GET /book
 ```
 
@@ -336,7 +336,7 @@ GET /book
 大きく分けて、インデックスに関する`mappings`と`settings`の情報を取得する。
 `mappings`はDBにおけるテーブル定義のようなもの。
 `settings`はインデックスの作成日時、シャードの数、レブリカ数などを確認できる。
-```
+```json
 {
   "book": {
     "aliases": {},
@@ -407,12 +407,12 @@ GET /book
 ```
 
 DELETEメソッドでインデックスの削除をする。
-```
+```json
 DELETE /book
 ```
 
 acknowledgedがtrueになればインデックスが削除されている。
-```
+```json
 {
   "acknowledged": true
 }
@@ -420,7 +420,7 @@ acknowledgedがtrueになればインデックスが削除されている。
 
 GETメソッドで取得するとエラーレスポンスが返ってくる。
 `no such index [book]`とエラーが返ってきて、インデックスがすでに削除みであることが確認できる。
-```
+```json
 {
   "error": {
     "root_cause": [
@@ -445,12 +445,12 @@ GETメソッドで取得するとエラーレスポンスが返ってくる。
 ```
 
 インデックスの作成にはPUTメソッドでリクエストする。
-```
+```json
 PUT /book
 ```
 
 レスポンスのindexにbookと表示され、インデックスが作成される。
-```
+```json
 {
   "acknowledged": true,
   "shards_acknowledged": true,
@@ -462,12 +462,12 @@ PUT /book
 マッピングはDBにおけるテーブル定義に相当する。
 
 `[インデックス名]/_mapping`に対して、GETメソッドをリクエストする。
-```
+```json
 GET /book/_mapping
 ```
 
 レスポンスは以下になる。
-```
+```json
 {
   "book": {
     "mappings": {}
@@ -477,7 +477,7 @@ GET /book/_mapping
 
 クエリを追加して確認する。
 
-```
+```json
 {
   "book": {
     "mappings": {
@@ -547,7 +547,7 @@ PUT /book
 ```
 
 レスポンスは以下になる。
-```
+```json
 {
   "acknowledged": true,
   "shards_acknowledged": true,
@@ -556,11 +556,11 @@ PUT /book
 ```
 
 GETメソッドでマッピングを確認する
-```
+```json
 GET /book/_mapping
 ```
 
-```
+```json
 {
   "book": {
     "mappings": {
@@ -606,7 +606,7 @@ POST /book/_bulk
 ```
 
 レスポンスは下記になる。
-```
+```json
 {
   "errors": false,
   "took": 0,
@@ -697,7 +697,7 @@ POST /book/_bulk
 
 ドキュメントへの項目追加は、ドキュメントの更新と同じように`/[インデックス名]/_update/[ドキュメントID]`に対してPOSTメソッドでリクエストする。
 discountRateというフィールドと0という値を追加する。
-```
+```json
 POST /book/_update/5
 {
   "doc": {
@@ -707,7 +707,7 @@ POST /book/_update/5
 ```
 
 レスポンスは以下のようにある。
-```
+```json
 {
   "_index": "book",
   "_id": "5",
@@ -724,7 +724,7 @@ POST /book/_update/5
 ```
 
 ドキュメント内容を取得して確認するとフィールドと値が追加されている。
-```
+```json
 {
   "_index": "book",
   "_id": "5",
@@ -746,7 +746,7 @@ POST /book/_update/5
 
 ### Elasticsearchにようる様々な検索方法を学ぶ
 全てのドキュメントを検索する場合は`[インデックス名]/_search`に対してGETメソッドをリクエストする。
-```
+```json
 GET /book/_search
 ```
 
@@ -756,7 +756,7 @@ totalのなかのvalueがヒットした件数になる。
 さらに同じhitsという項目があり、この中に具体的にヒットしたドキュメントの内容が返却される。
 デフォルトでは最大10件しか返さない。
 `/[インデックス名]/_search?size=20`のようにsizeパラメータで検索件数を指定する。
-```
+```json
 {
   "took": 112,
   "timed_out": false,
@@ -844,7 +844,7 @@ totalのなかのvalueがヒットした件数になる。
 ```
 
 ある単語を含むドキュメントを検索するには、リクエストbodyに以下のように記載する。
-```
+```json
 {
   "query": {
     "match": {
@@ -855,7 +855,7 @@ totalのなかのvalueがヒットした件数になる。
 ```
 
 itemCaptionにプログラミングを含むドキュメントを検索する。
-```
+```json
 GET book/_search
 {
   "query": {
@@ -868,7 +868,7 @@ GET book/_search
 
 レスポンスは以下のようになる。
 itemCaptionを見ると、プログラミングの文字列が入っている。
-```
+```json
 {
   "took": 115,
   "timed_out": false,
@@ -942,7 +942,7 @@ itemCaptionを見ると、プログラミングの文字列が入っている。
 ```
 
 and条件でドキュメントを検索するには、リクエストbodyに以下のように記載する。
-```
+```json
 {
   "query": {
     "bool": {
@@ -957,7 +957,7 @@ and条件でドキュメントを検索するには、リクエストbodyに以�
 ```
 
 itemCaptionに`プログラミング`かつ`入門`の両方を含むドキュメント検索する。
-```
+```json
 GET book/_search
 {
   "query": {
@@ -980,7 +980,7 @@ GET book/_search
 ```
 
 レスポンスは以下のようになる。
-```
+```json
 {
   "took": 17,
   "timed_out": false,
@@ -1016,7 +1016,7 @@ GET book/_search
 ```
 
 not検索でドキュメントを検索するには、リクエストbodyに以下のように記載する。
-```
+```json
 {
   "query": {
     "bool": {
@@ -1029,7 +1029,7 @@ not検索でドキュメントを検索するには、リクエストbodyに以�
 ```
 
 itemCaptionに`入門`を含まないドキュメントを検索する。
-```
+```json
 GET /book/_search
 {
   "query": {
@@ -1048,7 +1048,7 @@ GET /book/_search
 
 レスポンスは以下のようになる。
 itemCaptionに`入門`が含まれていないことがわかる。
-```
+```json
 {
   "took": 7,
   "timed_out": false,
@@ -1123,7 +1123,7 @@ itemCaptionに`入門`が含まれていないことがわかる。
 ```
 
 or検索でドキュメントを検索するには、リクエストbodyに以下のように記載する。
-```
+```json
 {
   "query": {
     "bool": {
@@ -1138,7 +1138,7 @@ or検索でドキュメントを検索するには、リクエストbodyに以�
 ```
 
 itemCaptionに`プログラミング`もしくは`入門`を含むドキュメント検索する。
-```
+```json
 GET book/_search
 {
   "query": {
@@ -1162,7 +1162,7 @@ GET book/_search
 
 レスポンスは以下になる。
 itemCaptionに`プログラミング`もしくは`入門`のいずれかが含まれる。
-```
+```json
 {
   "took": 30,
   "timed_out": false,
@@ -1239,7 +1239,7 @@ itemCaptionに`プログラミング`もしくは`入門`のいずれかが含�
 socreは検索条件に対する関連どの高さを表す。
 scoreを使って特定の検索条件にマッチしたものを上位表示させたい時、boostを使うことでその検索条件の関連度を高めることができる。
 重み付けを行いたい検索条件のmatch文を以下の形式で記載する。
-```
+```json
 "match": {
   "[フィールド名]": {
     "query": "[検索ワード]",
@@ -1249,7 +1249,7 @@ scoreを使って特定の検索条件にマッチしたものを上位表示さ
 ```
 
 `入門`が含まれていた場合のスコアを5倍に重み付けして検索する。
-```
+```json
 GET /book/_search
 {
   "query": {
@@ -1277,7 +1277,7 @@ GET /book/_search
 ```
 
 レスポンスは以下のようになる。
-```
+```json
 {
   "took": 24,
   "timed_out": false,
@@ -1352,7 +1352,7 @@ GET /book/_search
 
 一致した単語をハイライト表示させることが可能。
 query文の後にhighligh文を追加する。
-```
+```json
 "highlight": {
   "fields": {
     "[フィールド名]".{}
@@ -1361,7 +1361,7 @@ query文の後にhighligh文を追加する。
 ```
 
 以下のようなクエリを書く。
-```
+```json
 GET book/_search
 {
   "query": {
@@ -1379,7 +1379,7 @@ GET book/_search
 
 レスポンスは下記のようになる。
 highlightフィールドが追加されている。
-```
+```json
 {
   "took": 322,
   "timed_out": false,
@@ -1475,7 +1475,7 @@ highlightフィールドが追加されている。
 
 範囲での絞り込み検索を行うには、rangeを使用する。
 この例はある特定のフィールdの値がある値以下であるドキュメントを検索する。
-```
+```json
 {
   "query": {
     "range": {
@@ -1488,7 +1488,7 @@ highlightフィールドが追加されている。
 ```
 
 itemPriceが3000以下のドキュメントを検索する。
-```
+```json
 GET book/_search
 {
   "query": {
@@ -1502,7 +1502,7 @@ GET book/_search
 ```
 
 レスポンスは以下のようになり、itemPriceが3000以下のものが検索される。
-```
+```json
 {
   "took": 18,
   "timed_out": false,
@@ -1566,14 +1566,14 @@ GET book/_search
 
 検索結果をソートするには、query文の後にsort文を使用する。
 昇順でソートしたい場合は`asc`、降順でソートしたい場合は`desc`を使う。
-```
+```json
 "sort": [
   {"[フィールド名]":{"order": "[asc or desc]"}}
 ]
 ```
 
 itemPriceが3000以下で検索したドキュメントを、itemPriceの昇順にソートする。
-```
+```json
 GET book/_search
 {
   "query": {
@@ -1594,7 +1594,7 @@ GET book/_search
 ```
 
 レスポンスは以下のようになる。
-```
+```json
 {
   "took": 12,
   "timed_out": false,
@@ -1670,7 +1670,7 @@ Elasticsearchでは、1度のクエリで検索結果に加えて統計情報も
 
 aggrigation文を利用して統計データを作成する。
 query文の後に、以下の形式で記載する。
-```
+```json
 "aggregations": {
   "<aggregation_name>": {
     "<aggregatio_type>": {
@@ -1685,7 +1685,7 @@ query文をしてしなければ全データが返されるので、全データ
 aggrigation_nameは`itemPrice_bucket`とする。
 範囲ごとの集計をおこうなうためにはaggrigation_typeにrangeを指定する。
 
-```
+```json
 GET book/_search
 {
   "aggregations": {
@@ -1718,7 +1718,7 @@ GET book/_search
 レスポンスが以下のように返ってくる。
 aggregationsというデータが返ってきている。
 buckets以下に具体的な範囲ごとのデータが格納されている。
-```
+```json
 {
   "took": 19,
   "timed_out": false,
@@ -1830,7 +1830,7 @@ buckets以下に具体的な範囲ごとのデータが格納されている。
 ```
 
 検索条件でしてした結果に対して統計データを作成する。
-```
+```json
 GET book/_search
 {
   "query": {
@@ -1867,7 +1867,7 @@ GET book/_search
 
 レスポンスは以下のようになる。
 aggrigationの内容も、`プログラミング`を含む物の中から作成されている。
-```
+```json
 {
   "took": 202,
   "timed_out": false,
@@ -1972,7 +1972,7 @@ aggrigationの内容も、`プログラミング`を含む物の中から作成�
 開発環境にはPythonを使用する。
 書籍には`pipenv`を使用してるが`poetry`に変更している。
 
-```
+```sh
 asdf plugin add poetry      # poetryのプラグインを追加
 asdf install poetry latest  # 最新のpoetryを取得
 asdf set poetry latest      # 最新のpoetryをグローバルでセット
@@ -1983,7 +1983,7 @@ asdf set poetry latest      # 最新のpoetryをグローバルでセット
 
 
 `poetry`を使用して`requests`モジュールをインストールする。
-```
+```sh
 poetry init
 poetry add requests
 ```
@@ -2021,14 +2021,14 @@ with open("rakuten_books.json", "w") as f:
 ```
 
 実行する。
-```
+```sh
 poetry run python get_books_from_rakuten.py
 ```
 
 取得した書籍情報をElasticsearchにインポートするプログラムを作成する。
 
 elesticsearchライブラリをインストールする。
-```
+```sh
 poetry add elasticsearch
 ```
 
@@ -2053,13 +2053,13 @@ for rakuten_book in rakuten_books:
 ```
 
 実行するとElasticsearchに書籍情報を登録する。
-```
+```sh
 poetry run python import_data_to_es.py
 ```
 
 kibanaで`Discover`でbook indexを検索するとインポートした書籍情報を確認することができる。
 
-[./img/elasticsearch-python-tutorial/kibana-discover.png]
+![kibana-discover](./img/elasticsearch-python-tutorial/kibana-discover.png)
 
 三つアプリケーションを作成する。
 1. 楽天ブックスから書籍情報を取得するプログラム
@@ -2067,7 +2067,7 @@ kibanaで`Discover`でbook indexを検索するとインポートした書籍情
 3. 検索アプリケーション
 
 Flaskをインストールする。
-```
+```sh
 poetry add Flask
 ```
 
@@ -2240,4 +2240,4 @@ em {
 
 `http://127.0.0.1:5000`にアクセスすると下図のような画面が表示される。
 
-[./img/elasticsearch-python-tutorial/python-search.png]
+![python-search](./img/elasticsearch-python-tutorial/python-search.png)
