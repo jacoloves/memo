@@ -54,3 +54,12 @@ passkeys.devを確認する。
 
 ## 5章
 パスキーのUXを実装する
+
+パスキーの登録やワンボタンログインなどの実装方法をJavaScriptで学んだ。
+
+Googleがパスキーの実装方法を紹介しているらしい。
+https://goo.gle/passkeys-codelab
+
+## 6章
+WebAuthn API リファレンス
+
