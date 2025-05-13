@@ -277,3 +277,59 @@ func StartTmuxWithLogs(sessionName string, podNames []string, namespace string, 
 ```
 
 ![split結果5](img/kube-para-log/split-pane-tail-since.png)
+
+## 特定のcontainer名指定に対応（例：--container=envoy）
+container名を選択することで柔軟に色々なcontainerのログを見ることができるようになった。
+
+`cmd/root.go`のinit関数に定数を追加
+```go
+var (
++	container strint
+	namespace string
+	since     string
+	tail      int
+)
+
+...
+
+func init() {
+	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "Kubernetes maespace to search pods in")
+	rootCmd.Flags().StringVar(&since, "since", "", "Only return logs newer than a relatice duration like 5s, 2m, or 3h")
+	rootCmd.Flags().IntVar(&tail, "tail", 10, "Lines of recent log file to display (0 = all)")
++ rootCmd.Flags().StringVarP(&container, "container", "c", "", "Target container name (for multi-container pods)")
+}
+```
+
+`internal/tmux/layout.go`に以下を追加した
+```go
++ func StartTmuxWithLogs(sessionName string, podNames []string, namespace string, since string, tail int, container string) error {
+	...
+	for i, pod := range podNames {
+
+			cmd := fmt.Sprintf("kubectl logs -f %s -n %s", pod, namespace)
+		+	if container != "" {
+		+		cmd += fmt.Sprintf(" --container=%s", container)
+		+	}
+
+			...
+
+			if err := exec.Command("tmux", "send-keys", "-t", target, cmd, "C-m").Run(); err != nil {
+				return fmt.Errorf("failed to send command to tmux: %w", err)
+			}
+		}
+	...
+}
+```
+
+以下を実行する
+```sh
+❯ ./kube-para-log flagr -n jse-a -c envoy
+```
+
+![split結果6](img/kube-para-log/split-container-name-change.png)
+
+## 終わりに
+普段EKSでログを見る際にsternを使用していて、複数のペインでログを見れたら良いなという願望を叶えることができた。
+実際のインフラ作業の見守りでもこのツールが大いに役に立った。
+まだ課題として--selector 対応で Pod 絞り込みを強化したり、どのコンテナのログを見てるのかわかるようなUIの工夫ができると思うので引き続き頑張る。
