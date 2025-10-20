@@ -907,3 +907,325 @@ etcdは、Kubernetesの全てのクラスター状態を保存する分散キー
 1. 必要なファイルをcontrollerノードに配布
 2. etcdバイナリのダウンロード・インストール
 3. 3ノード構成の高可用性etcdクラスターを構築
+
+- 証明書とファイルの配布
+```
+# controller-0への配布
+scp ca.pem kubernetes-key.pem kubernetes.pem ubuntu@192.168.8.10:~/
+
+
+# controller-1への配布
+scp ca.pem kubernetes-key.pem kubernetes.pem ubuntu@192.168.8.11:~/
+
+# controller-2への配布
+scp ca.pem kubernetes-key.pem kubernetes.pem ubuntu@192.168.8.12:~/
+
+---
+
+ubuntu@gateway-01:~/k8s-certs$ scp ca.pem kubernetes-key.pem kubernetes.pem ubuntu@192.168.8.10:~/
+ca.pem                                                                           100% 1306     1.9MB/s   00:00
+kubernetes-key.pem                                                               100% 1679     3.6MB/s   00:00
+kubernetes.pem                                                                   100% 1659     4.4MB/s   00:00
+ubuntu@gateway-01:~/k8s-certs$ scp ca.pem kubernetes-key.pem kubernetes.pem ubuntu@192.168.8.11:~/
+ca.pem                                                                           100% 1306     3.4MB/s   00:00
+kubernetes-key.pem                                                               100% 1679     5.6MB/s   00:00
+kubernetes.pem                                                                   100% 1659     7.9MB/s   00:00
+ubuntu@gateway-01:~/k8s-certs$ scp ca.pem kubernetes-key.pem kubernetes.pem ubuntu@192.168.8.12:~/
+ca.pem                                                                           100% 1306     3.6MB/s   00:00
+kubernetes-key.pem                                                               100% 1679     6.7MB/s   00:00
+kubernetes.pem                                                                   100% 1659     7.0MB/s   00:00
+ubuntu@gateway-01:~/k8s-certs$
+
+```
+
+- ウィンドウを分割して、etcdバイナリのダウンロードとインストール
+```
+wget -q --show-progress --https-only --timestamping \
+  "https://github.com/etcd-io/etcd/releases/download/v3.5.12/etcd-v3.5.12-linux-amd64.tar.gz"
+
+tar -xvf etcd-v3.5.12-linux-amd64.tar.gz
+
+sudo mv etcd-v3.5.12-linux-amd64/etcd* /usr/local/bin/
+
+etcd --version
+etcdctl version
+
+---
+
+# controller-0の出力
+
+ubuntu@controller-0:~$ wget -q --show-progress --https-only --timestamping \
+  "https://github.com/etcd-io/etcd/releases/download/v3.5.12/etcd-v3.5.12-linux-amd64.tar.gz"
+etcd-v3.5.12-linux-amd64.tar 100%[=============================================>]  19.40M  17.9MB/s    in 1.1s
+ubuntu@controller-0:~$ ll
+total 19912
+drwxr-x--- 4 ubuntu ubuntu     4096 Oct 20 21:54 ./
+drwxr-xr-x 3 root   root       4096 Oct 14 21:45 ../
+-rw------- 1 ubuntu ubuntu      827 Oct 17 22:11 .bash_history
+-rw-r--r-- 1 ubuntu ubuntu      220 Jan  6  2022 .bash_logout
+-rw-r--r-- 1 ubuntu ubuntu     3771 Jan  6  2022 .bashrc
+drwx------ 2 ubuntu ubuntu     4096 Oct 14 21:45 .cache/
+-rw-rw-r-- 1 ubuntu ubuntu     1306 Oct 20 21:46 ca.pem
+-rw-rw-r-- 1 ubuntu ubuntu 20337842 Jan 31  2024 etcd-v3.5.12-linux-amd64.tar.gz
+-rw------- 1 ubuntu ubuntu     1679 Oct 20 21:46 kubernetes-key.pem
+-rw-rw-r-- 1 ubuntu ubuntu     1659 Oct 20 21:46 kubernetes.pem
+-rw-r--r-- 1 ubuntu ubuntu      807 Jan  6  2022 .profile
+drwx------ 2 ubuntu ubuntu     4096 Oct 14 21:45 .ssh/
+-rw-r--r-- 1 ubuntu ubuntu        0 Oct 14 21:50 .sudo_as_admin_successful
+-rw-rw-r-- 1 ubuntu ubuntu      165 Oct 20 21:54 .wget-hsts
+ubuntu@controller-0:~$ tar -xvf etcd-v3.5.12-linux-amd64.tar.gz
+etcd-v3.5.12-linux-amd64/
+etcd-v3.5.12-linux-amd64/README.md
+etcd-v3.5.12-linux-amd64/READMEv2-etcdctl.md
+etcd-v3.5.12-linux-amd64/etcdutl
+etcd-v3.5.12-linux-amd64/etcdctl
+etcd-v3.5.12-linux-amd64/Documentation/
+etcd-v3.5.12-linux-amd64/Documentation/README.md
+etcd-v3.5.12-linux-amd64/Documentation/dev-guide/
+etcd-v3.5.12-linux-amd64/Documentation/dev-guide/apispec/
+etcd-v3.5.12-linux-amd64/Documentation/dev-guide/apispec/swagger/
+etcd-v3.5.12-linux-amd64/Documentation/dev-guide/apispec/swagger/v3election.swagger.json
+etcd-v3.5.12-linux-amd64/Documentation/dev-guide/apispec/swagger/rpc.swagger.json
+etcd-v3.5.12-linux-amd64/Documentation/dev-guide/apispec/swagger/v3lock.swagger.json
+etcd-v3.5.12-linux-amd64/README-etcdutl.md
+etcd-v3.5.12-linux-amd64/README-etcdctl.md
+etcd-v3.5.12-linux-amd64/etcd
+ubuntu@controller-0:~$ sudo mv etcd-v3.5.12-linux-amd64/etcd* /usr/local/bin/
+[sudo] password for ubuntu:
+ubuntu@controller-0:~$ etcd --version
+etcdctl version
+etcd Version: 3.5.12
+Git SHA: e7b3bb6cc
+Go Version: go1.20.13
+Go OS/Arch: linux/amd64
+etcdctl version: 3.5.12
+API version: 3.5
+ubuntu@controller-0:~$
+
+```
+
+- etcdの設定
+```
+# 設定ディレクトリとデータディレクトリの作成
+sudo mkdir -p /etc/etcd /var/lib/etcd
+sudo chmod 700 /var/lib/etcd
+
+# 証明書のコピー
+sudo cp ~/ca.pem ~/kubernetes-key.pem ~/kubernetes.pem /etc/etcd/
+
+---
+# controller-0の出力　cpで途中入力を求められたが無事に/etc/etcdにコピーされている
+ubuntu@controller-0:~$ sudo mkdir -p /etc/etcd /var/lib/etcd
+ubuntu@controller-0:~$ sudo chmod 700 /var/lib/etcd
+ubuntu@controller-0:~$ sudo cp ~/ca.pem ~/kubernetes-key.pem ~/kubernetes.pem /etc/etcd/
+>
+> ^C
+ubuntu@controller-0:~$ ll
+total 19916
+drwxr-x--- 5 ubuntu ubuntu     4096 Oct 20 21:55 ./
+drwxr-xr-x 3 root   root       4096 Oct 14 21:45 ../
+-rw------- 1 ubuntu ubuntu      827 Oct 17 22:11 .bash_history
+-rw-r--r-- 1 ubuntu ubuntu      220 Jan  6  2022 .bash_logout
+-rw-r--r-- 1 ubuntu ubuntu     3771 Jan  6  2022 .bashrc
+drwx------ 2 ubuntu ubuntu     4096 Oct 14 21:45 .cache/
+-rw-rw-r-- 1 ubuntu ubuntu     1306 Oct 20 21:46 ca.pem
+drwxr-xr-x 3 ubuntu ubuntu     4096 Oct 20 21:55 etcd-v3.5.12-linux-amd64/
+-rw-rw-r-- 1 ubuntu ubuntu 20337842 Jan 31  2024 etcd-v3.5.12-linux-amd64.tar.gz
+-rw------- 1 ubuntu ubuntu     1679 Oct 20 21:46 kubernetes-key.pem
+-rw-rw-r-- 1 ubuntu ubuntu     1659 Oct 20 21:46 kubernetes.pem
+-rw-r--r-- 1 ubuntu ubuntu      807 Jan  6  2022 .profile
+drwx------ 2 ubuntu ubuntu     4096 Oct 14 21:45 .ssh/
+-rw-r--r-- 1 ubuntu ubuntu        0 Oct 14 21:50 .sudo_as_admin_successful
+-rw-rw-r-- 1 ubuntu ubuntu      165 Oct 20 21:54 .wget-hsts
+ubuntu@controller-0:~$ ll /etc/etcd
+total 20
+drwxr-xr-x  2 root root 4096 Oct 20 21:59 ./
+drwxr-xr-x 97 root root 4096 Oct 20 21:59 ../
+-rw-r--r--  1 root root 1306 Oct 20 21:59 ca.pem
+-rw-------  1 root root 1679 Oct 20 21:59 kubernetes-key.pem
+-rw-r--r--  1 root root 1659 Oct 20 21:59 kubernetes.pem
+ubuntu@controller-0:~$
+
+```
+
+- etcdのsystemdサービスファイル作成
+同期モードは一時解除
+
+- controller-0での作業
+```
+INTERNAL_IP=192.168.8.10
+ETCD_NAME=controller-0
+
+cat <<EOF | sudo tee /etc/systemd/system/etcd.service
+[Unit]
+Description=etcd
+Documentation=https://github.cm/coreos
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/etcd \\
+  --name ${ETCD_NAME} \\
+  --cert-file=/etc/etcd/kubernetes.pem \\
+  --key-file=/etc/etcd/kubernetes-key.pem \\
+  --peer-cert-file=/etc/etcd/kubernetes.pem \\
+  --peer-key-file=/etc/etcd/kubernetes-key.pem \\
+  --trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-client-cert-auth \\
+  --client-cert-auth \\
+  --initial-advertise-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
+  --advertise-client-urls https://${INTERNAL_IP}:2379 \\
+  --initial-cluster-token etcd-cluster-0 \\
+  --initial-cluster controller-0=https://192.168.8.10:2380,controller-1=https://192.168.8.11:2380,controller-2=https://192.168.8.12:2380 \\
+  --initial-cluster-state new \\
+  --data-dir=/var/lib/etcd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+- controller-1での作業
+```
+INTERNAL_IP=192.168.8.11
+ETCD_NAME=controller-1
+
+cat <<EOF | sudo tee /etc/systemd/system/etcd.service
+[Unit]
+Description=etcd
+Documentation=https://github.cm/coreos
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/etcd \\
+  --name ${ETCD_NAME} \\
+  --cert-file=/etc/etcd/kubernetes.pem \\
+  --key-file=/etc/etcd/kubernetes-key.pem \\
+  --peer-cert-file=/etc/etcd/kubernetes.pem \\
+  --peer-key-file=/etc/etcd/kubernetes-key.pem \\
+  --trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-client-cert-auth \\
+  --client-cert-auth \\
+  --initial-advertise-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
+  --advertise-client-urls https://${INTERNAL_IP}:2379 \\
+  --initial-cluster-token etcd-cluster-0 \\
+  --initial-cluster controller-0=https://192.168.8.10:2380,controller-1=https://192.168.8.11:2380,controller-2=https://192.168.8.12:2380 \\
+  --initial-cluster-state new \\
+  --data-dir=/var/lib/etcd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+- controller-2での作業
+```
+INTERNAL_IP=192.168.8.12
+ETCD_NAME=controller-2
+
+cat <<EOF | sudo tee /etc/systemd/system/etcd.service
+[Unit]
+Description=etcd
+Documentation=https://github.cm/coreos
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/etcd \\
+  --name ${ETCD_NAME} \\
+  --cert-file=/etc/etcd/kubernetes.pem \\
+  --key-file=/etc/etcd/kubernetes-key.pem \\
+  --peer-cert-file=/etc/etcd/kubernetes.pem \\
+  --peer-key-file=/etc/etcd/kubernetes-key.pem \\
+  --trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-client-cert-auth \\
+  --client-cert-auth \\
+  --initial-advertise-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
+  --advertise-client-urls https://${INTERNAL_IP}:2379 \\
+  --initial-cluster-token etcd-cluster-0 \\
+  --initial-cluster controller-0=https://192.168.8.10:2380,controller-1=https://192.168.8.11:2380,controller-2=https://192.168.8.12:2380 \\
+  --initial-cluster-state new \\
+  --data-dir=/var/lib/etcd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+- etcdサービスの起動
+同期モードを有効化しておく
+
+- 全controllerノードで同時実行
+```
+sudo systemctl daemon-reload
+sudo systemctl enable etcd
+sudo systemctl start etcd
+sudo systemctl status etcd
+
+---
+#controller-0の出力
+
+ubuntu@controller-0:~$ sudo systemctl daemon-reload
+ubuntu@controller-0:~$ sudo systemctl enable etcd
+Created symlink /etc/systemd/system/multi-user.target.wants/etcd.service → /etc/systemd/system/etcd.service.
+ubuntu@controller-0:~$ sudo systemctl start etcd
+ubuntu@controller-0:~$ sudo systemctl status etcd
+● etcd.service - etcd
+     Loaded: loaded (/etc/systemd/system/etcd.service; enabled; vendor preset: enabled)
+     Active: active (running) since Mon 2025-10-20 22:33:49 UTC; 26s ago
+       Docs: https://github.cm/coreos
+   Main PID: 2285 (etcd)
+      Tasks: 8 (limit: 2218)
+     Memory: 12.8M
+        CPU: 433ms
+     CGroup: /system.slice/etcd.service
+             └─2285 /usr/local/bin/etcd --name controller-0 --cert-file=/etc/etcd/kubernetes.pem --key-file=/etc/e>
+
+Oct 20 22:33:49 controller-0 etcd[2285]: {"level":"info","ts":"2025-10-20T22:33:49.03866Z","caller":"etcdserver/se>
+Oct 20 22:33:49 controller-0 etcd[2285]: {"level":"info","ts":"2025-10-20T22:33:49.040276Z","caller":"embed/serve.>
+Oct 20 22:33:49 controller-0 etcd[2285]: {"level":"info","ts":"2025-10-20T22:33:49.040356Z","caller":"etcdmain/mai>
+Oct 20 22:33:49 controller-0 etcd[2285]: {"level":"info","ts":"2025-10-20T22:33:49.040454Z","caller":"etcdmain/mai>
+Oct 20 22:33:49 controller-0 systemd[1]: Started etcd.
+Oct 20 22:33:49 controller-0 etcd[2285]: {"level":"info","ts":"2025-10-20T22:33:49.046876Z","caller":"embed/serve.>
+Oct 20 22:33:49 controller-0 etcd[2285]: {"level":"info","ts":"2025-10-20T22:33:49.054099Z","caller":"etcdserver/s>
+Oct 20 22:33:49 controller-0 etcd[2285]: {"level":"info","ts":"2025-10-20T22:33:49.058485Z","caller":"membership/c>
+Oct 20 22:33:49 controller-0 etcd[2285]: {"level":"info","ts":"2025-10-20T22:33:49.058665Z","caller":"api/capabili>
+Oct 20 22:33:49 controller-0 etcd[2285]: {"level":"info","ts":"2025-10-20T22:33:49.058807Z","caller":"etcdserver/s>
+ubuntu@controller-0:~$
+
+```
+
+- etcdクラスターの確認
+```
+sudo ETCDCTL_API=3 etcdctl member list \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/ca.pem \
+  --cert=/etc/etcd/kubernetes.pem \
+  --key=/etc/etcd/kubernetes-key.pem
+
+---
+# controller-0の出力
+ubuntu@controller-0:~$ sudo ETCDCTL_API=3 etcdctl member list \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/ca.pem \
+  --cert=/etc/etcd/kubernetes.pem \
+  --key=/etc/etcd/kubernetes-key.pem
+286ea08a76969776, started, controller-1, https://192.168.8.11:2380, https://192.168.8.11:2379, false
+671e6154d5107277, started, controller-2, https://192.168.8.12:2380, https://192.168.8.12:2379, false
+7e87d57c936a3019, started, controller-0, https://192.168.8.10:2380, https://192.168.8.10:2379, false
+ubuntu@controller-0:~$
+
+```
