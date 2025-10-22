@@ -1229,3 +1229,489 @@ ubuntu@controller-0:~$ sudo ETCDCTL_API=3 etcdctl member list \
 ubuntu@controller-0:~$
 
 ```
+
+## 8章 Kubernetes Control Planeの構築
+
+### 概要
+このステップでは、3つのcontrollerノードに以下のコンポーネントをインストールします：
+1. kube-apiserver - Kubernetes APIのフロントエンド
+2. kube-controller-manager - クラスターの状態を管理
+3. kube-scheduler - Podの配置を決定
+
+- 必要なファイルの配布
+```
+# controller-0への配布
+scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml \
+  kube-controller-manager.kubeconfig \
+  kube-scheduler.kubeconfig \
+  ubuntu@192.168.8.10:~/
+
+
+# controller-1への配布
+scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml \
+  kube-controller-manager.kubeconfig \
+  kube-scheduler.kubeconfig \
+  ubuntu@192.168.8.11:~/
+
+
+# controller-2への配布
+scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml \
+  kube-controller-manager.kubeconfig \
+  kube-scheduler.kubeconfig \
+  ubuntu@192.168.8.12:~/
+
+---
+
+ubuntu@gateway-01:~/k8s-certs$ scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml \
+  kube-controller-manager.kubeconfig \
+  kube-scheduler.kubeconfig \
+  ubuntu@192.168.8.10:~/
+
+ca.pem                                                                           100% 1306     1.6MB/s   00:00
+ca-key.pem                                                                       100% 1675     3.4MB/s   00:00
+kubernetes-key.pem                                                               100% 1679     4.4MB/s   00:00
+kubernetes.pem                                                                   100% 1659     4.7MB/s   00:00
+service-account-key.pem                                                          100% 1675     4.1MB/s   00:00
+service-account.pem                                                              100% 1428     4.0MB/s   00:00
+encryption-config.yaml                                                           100%  240   582.7KB/s   00:00
+kube-controller-manager.kubeconfig                                               100% 6355    14.9MB/s   00:00
+kube-scheduler.kubeconfig                                                        100% 6305    13.9MB/s   00:00
+ubuntu@gateway-01:~/k8s-certs$ scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml \
+  kube-controller-manager.kubeconfig \
+  kube-scheduler.kubeconfig \
+  ubuntu@192.168.8.11:~/
+
+ca.pem                                                                           100% 1306     3.5MB/s   00:00
+ca-key.pem                                                                       100% 1675     6.4MB/s   00:00
+kubernetes-key.pem                                                               100% 1679     6.2MB/s   00:00
+kubernetes.pem                                                                   100% 1659     6.8MB/s   00:00
+service-account-key.pem                                                          100% 1675     8.2MB/s   00:00
+service-account.pem                                                              100% 1428     6.9MB/s   00:00
+encryption-config.yaml                                                           100%  240     1.3MB/s   00:00
+kube-controller-manager.kubeconfig                                               100% 6355    24.7MB/s   00:00
+kube-scheduler.kubeconfig                                                        100% 6305    28.0MB/s   00:00
+ubuntu@gateway-01:~/k8s-certs$ scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml \
+  kube-controller-manager.kubeconfig \
+  kube-scheduler.kubeconfig \
+  ubuntu@192.168.8.12:~/
+
+ca.pem                                                                           100% 1306     3.6MB/s   00:00
+ca-key.pem                                                                       100% 1675     6.5MB/s   00:00
+kubernetes-key.pem                                                               100% 1679     7.3MB/s   00:00
+kubernetes.pem                                                                   100% 1659     7.9MB/s   00:00
+service-account-key.pem                                                          100% 1675     8.2MB/s   00:00
+service-account.pem                                                              100% 1428     7.2MB/s   00:00
+encryption-config.yaml                                                           100%  240     1.3MB/s   00:00
+kube-controller-manager.kubeconfig                                               100% 6355    25.2MB/s   00:00
+kube-scheduler.kubeconfig                                                        100% 6305    28.1MB/s   00:00
+ubuntu@gateway-01:~/k8s-certs$
+
+```  a
+
+- Kubernetesバイナリのダウンロードとインストール
+同期モードを有効化しておく
+- Kubernetesバイナリのダウンロード
+```
+sudo mkdir -p /etc/kubernetes/config
+
+# Kubernetes v1.29.1バイナリ
+wget -q --show-progress --https-only --timestamping \
+  "https://dl.k8s.io/v1.29.1/bin/linux/amd64/kube-apiserver" \
+  "https://dl.k8s.io/v1.29.1/bin/linux/amd64/kube-controller-manager" \
+  "https://dl.k8s.io/v1.29.1/bin/linux/amd64/kube-scheduler" \
+  "https://dl.k8s.io/v1.29.1/bin/linux/amd64/kubectl" 
+
+---
+# controller-0の出力
+
+ubuntu@controller-0:~$ sudo mkdir -p /etc/kubernetes/config
+[sudo] password for ubuntu:
+ubuntu@controller-0:~$ ll /etc/kubernetes/config/
+total 8
+drwxr-xr-x 2 root root 4096 Oct 21 22:21 ./
+drwxr-xr-x 3 root root 4096 Oct 21 22:21 ../
+ubuntu@controller-0:~$ wget -q --show-progress --https-only --timestamping \
+  "https://dl.k8s.io/v1.29.1/bin/linux/amd64/kube-apiserver" \
+  "https://dl.k8s.io/v1.29.1/bin/linux/amd64/kube-controller-manager" \
+  "https://dl.k8s.io/v1.29.1/bin/linux/amd64/kube-scheduler" \
+  "https://dl.k8s.io/v1.29.1/bin/linux/amd64/kubectl"
+
+kube-apiserver               100%[=============================================>] 117.99M  3.11MB/s    in 41s
+kube-controller-manager      100%[=============================================>] 112.87M  2.21MB/s    in 42s
+kube-scheduler               100%[=============================================>]  53.35M  3.06MB/s    in 19s
+kubectl                      100%[=============================================>]  47.40M  5.32MB/s    in 8.2s
+ubuntu@controller-0:~$
+
+
+```
+
+- バイナリのインストール
+```
+chmod +x kube-apiserver kube-controller-manager kube-scheduler kubectl
+
+sudo mv kube-apiserver kube-controller-manager kube-scheduler kubectl /usr/local/bin/
+
+kubectl version --client
+
+---
+
+# controller-0の出力
+ubuntu@controller-0:~$ chmod +x kube-apiserver kube-controller-manager kube-scheduler kubectl
+ubuntu@controller-0:~$ sudo mv kube-apiserver kube-controller-manager kube-scheduler kubectl /usr/local/bin/
+ubuntu@controller-0:~$ kubectl version --client
+Client Version: v1.29.1
+Kustomize Version: v5.0.4-0.20230601165947-6ce0bf390ce3
+ubuntu@controller-0:~$
+
+```
+
+- kube-apiserverの設定
+- 証明書と設定ファイルの配置
+```
+sudo mkdir -p /var/lib/kubernetes/
+
+sudo cp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml /var/lib/kubernetes/
+
+---
+# controller-0の出力
+
+ubuntu@controller-0:~$ sudo mkdir -p /var/lib/kubernetes/
+ubuntu@controller-0:~$ sudo cp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml /var/lib/kubernetes/
+
+ubuntu@controller-0:~$ ll /var/lib/kubernetes/
+total 36
+drwxr-xr-x  2 root root 4096 Oct 21 22:37 ./
+drwxr-xr-x 42 root root 4096 Oct 21 22:37 ../
+-rw-------  1 root root 1675 Oct 21 22:37 ca-key.pem
+-rw-r--r--  1 root root 1306 Oct 21 22:37 ca.pem
+-rw-------  1 root root  240 Oct 21 22:37 encryption-config.yaml
+-rw-------  1 root root 1679 Oct 21 22:37 kubernetes-key.pem
+-rw-r--r--  1 root root 1659 Oct 21 22:37 kubernetes.pem
+-rw-------  1 root root 1675 Oct 21 22:37 service-account-key.pem
+-rw-r--r--  1 root root 1428 Oct 21 22:37 service-account.pem
+ubuntu@controller-0:~$
+
+```
+
+- kube-apiserver systemdサービスファイルの作成
+- controller-0での作業
+```
+INTERNAL_IP=192.168.8.10
+
+cat <<EOF | sudo tee /etc/systemd/system/kube-apiserver.service
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/kubernetes/kubernetes
+
+[Service]
+ExecStart=/usr/local/bin/kube-apiserver \\
+  --advertise-address=${INTERNAL_IP} \\
+  --allow-privileged=true \\
+  --apiserver-count=3 \\
+  --audit-log-maxage=30 \\
+  --audit-log-maxbackup=3 \\
+  --audit-log-maxsize=100 \\
+  --audit-log-path=/var/log/audit.log \\
+  --authorization-mode=Node,RBAC \\
+  --bind-address=0.0.0.0 \\
+  --client-ca-file=/var/lib/kubernetes/ca.pem \\
+  --enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \\
+  --etcd-cafile=/var/lib/kubernetes/ca.pem \\
+  --etcd-certfile=/var/lib/kubernetes/kubernetes.pem \\
+  --etcd-keyfile=/var/lib/kubernetes/kubernetes-key.pem \\
+  --etcd-servers=https://192.168.8.10:2379,https://192.168.8.11:2379,https://192.168.8.12:2379 \\
+  --event-ttl=1h \\
+  --encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\
+  --kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
+  --kubelet-client-certificate=/var/lib/kubernetes/kubernetes.pem \\
+  --kubelet-client-key=/var/lib/kubernetes/kubernetes-key.pem \\
+  --runtime-config='api/all=true' \\
+  --service-account-key-file=/var/lib/kubernetes/service-account.pem \\
+  --service-account-signing-key-file=/var/lib/kubernetes/service-account-key.pem \\
+  --service-account-issuer=https://${INTERNAL_IP}:6443 \\
+  --service-cluster-ip-range=10.32.0.0/24 \\
+  --service-node-port-range=30000-32767 \\
+  --tls-cert-file=/var/lib/kubernetes/kubernetes.pem \\
+  --tls-private-key-file=/var/lib/kubernetes/kubernetes-key.pem \\
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+- controller-1での作業
+```
+INTERNAL_IP=192.168.8.11
+
+cat <<EOF | sudo tee /etc/systemd/system/kube-apiserver.service
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/kubernetes/kubernetes
+
+[Service]
+ExecStart=/usr/local/bin/kube-apiserver \\
+  --advertise-address=${INTERNAL_IP} \\
+  --allow-privileged=true \\
+  --apiserver-count=3 \\
+  --audit-log-maxage=30 \\
+  --audit-log-maxbackup=3 \\
+  --audit-log-maxsize=100 \\
+  --audit-log-path=/var/log/audit.log \\
+  --authorization-mode=Node,RBAC \\
+  --bind-address=0.0.0.0 \\
+  --client-ca-file=/var/lib/kubernetes/ca.pem \\
+  --enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \\
+  --etcd-cafile=/var/lib/kubernetes/ca.pem \\
+  --etcd-certfile=/var/lib/kubernetes/kubernetes.pem \\
+  --etcd-keyfile=/var/lib/kubernetes/kubernetes-key.pem \\
+  --etcd-servers=https://192.168.8.10:2379,https://192.168.8.11:2379,https://192.168.8.12:2379 \\
+  --event-ttl=1h \\
+  --encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\
+  --kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
+  --kubelet-client-certificate=/var/lib/kubernetes/kubernetes.pem \\
+  --kubelet-client-key=/var/lib/kubernetes/kubernetes-key.pem \\
+  --runtime-config='api/all=true' \\
+  --service-account-key-file=/var/lib/kubernetes/service-account.pem \\
+  --service-account-signing-key-file=/var/lib/kubernetes/service-account-key.pem \\
+  --service-account-issuer=https://${INTERNAL_IP}:6443 \\
+  --service-cluster-ip-range=10.32.0.0/24 \\
+  --service-node-port-range=30000-32767 \\
+  --tls-cert-file=/var/lib/kubernetes/kubernetes.pem \\
+  --tls-private-key-file=/var/lib/kubernetes/kubernetes-key.pem \\
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+- controller-2での作業
+```
+INTERNAL_IP=192.168.8.12
+
+cat <<EOF | sudo tee /etc/systemd/system/kube-apiserver.service
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/kubernetes/kubernetes
+
+[Service]
+ExecStart=/usr/local/bin/kube-apiserver \\
+  --advertise-address=${INTERNAL_IP} \\
+  --allow-privileged=true \\
+  --apiserver-count=3 \\
+  --audit-log-maxage=30 \\
+  --audit-log-maxbackup=3 \\
+  --audit-log-maxsize=100 \\
+  --audit-log-path=/var/log/audit.log \\
+  --authorization-mode=Node,RBAC \\
+  --bind-address=0.0.0.0 \\
+  --client-ca-file=/var/lib/kubernetes/ca.pem \\
+  --enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \\
+  --etcd-cafile=/var/lib/kubernetes/ca.pem \\
+  --etcd-certfile=/var/lib/kubernetes/kubernetes.pem \\
+  --etcd-keyfile=/var/lib/kubernetes/kubernetes-key.pem \\
+  --etcd-servers=https://192.168.8.10:2379,https://192.168.8.11:2379,https://192.168.8.12:2379 \\
+  --event-ttl=1h \\
+  --encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\
+  --kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
+  --kubelet-client-certificate=/var/lib/kubernetes/kubernetes.pem \\
+  --kubelet-client-key=/var/lib/kubernetes/kubernetes-key.pem \\
+  --runtime-config='api/all=true' \\
+  --service-account-key-file=/var/lib/kubernetes/service-account.pem \\
+  --service-account-signing-key-file=/var/lib/kubernetes/service-account-key.pem \\
+  --service-account-issuer=https://${INTERNAL_IP}:6443 \\
+  --service-cluster-ip-range=10.32.0.0/24 \\
+  --service-node-port-range=30000-32767 \\
+  --tls-cert-file=/var/lib/kubernetes/kubernetes.pem \\
+  --tls-private-key-file=/var/lib/kubernetes/kubernetes-key.pem \\
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+- kube-controller-managerの設定
+同期モードを有効化しておく
+
+- kubeconfigの配置
+```
+sudo cp ~/kube-controller-manager.kubeconfig /var/lib/kubernetes/
+```
+
+- kube-controller-manager systemdサービスファイルの作成
+```
+cat <<EOF | sudo tee /etc/systemd/system/kube-controller-manager.service
+[Unit]
+Description=Kubernetes Controller Manager
+Documentation=https://github.com/kubernetes/kubernetes
+
+[Service]
+ExecStart=/usr/local/bin/kube-controller-manager \\
+  --bind-address=0.0.0.0 \\
+  --cluster-cidr=10.200.0.0/16 \\
+  --cluster-name=kubernetes \\
+  --cluster-signing-cert-file=/var/lib/kubernetes/ca.pem \\
+  --cluster-signing-key-file=/var/lib/kubernetes/ca-key.pem \\
+  --kubeconfig=/var/lib/kubernetes/kube-controller-manager.kubeconfig \\
+  --leader-elect=true \\
+  --root-ca-file=/var/lib/kubernetes/ca.pem \\
+  --service-account-private-key-file=/var/lib/kubernetes/service-account-key.pem \\
+  --service-cluster-ip-range=10.32.0.0/24 \\
+  --use-service-account-credentials=true \\
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+```
+
+** 重要なパラメータ **
+- `--cluster-cidr=10.200.0.0/16`: Pod用のIPレンジ
+- `--service-cluster-ip-range=10.32.0.0/24`: Service用のIPレン
+- `--leader-elect=true`: 高可用性のためのリーダー選出
+
+- kube-schedulerの設定
+- kubeconfigの配置
+```
+sudo cp ~/kube-scheduler.kubeconfig /var/lib/kubernetes/
+```
+
+- kube-scheduler設定ファイルの作成
+```
+cat <<EOF | sudo tee /etc/kubernetes/config/kube-scheduler.yaml
+apiVersion: kubescheduler.config.k8s.io/v1
+kind: KubeSchedulerConfiguration
+clinetConnection:
+  kubeconfig: "/var/lib/kubernetes/kube-scheduler.kubeconfig"
+leaderElection:
+  leaderElect: true
+EOF
+```
+
+- kube-scheduler systemdサービスファイルの作成
+```
+cat <<EOF | sudo tee /etc/systemd/system/kube-scheduler.service
+[Unit]
+Description=Kubernetes Scheduler
+Documentation=https://github.com/kubernetes/kubernetes
+
+[Service]
+ExecStart=/usr/local/bin/kube-scheduler \\
+  --config=/etc/kubernetes/config/kube-scheduler.yaml \\
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+- Kubernetes Control Planeサービスの起動
+```
+sudo systemctl daemon-reload
+sudo systemctl enable kube-apiserver kube-controller-manager kube-scheduler
+sudo systemctl start kube-apiserver kube-controller-manager kube-scheduler
+
+sleep 10
+
+# サービスの状態確認
+sudo systemctl status kube-apiserver --no-pager
+sudo systemctl status kube-controller-manager --no-pager
+sudo systemctl status kube-scheduler --no-pager
+
+---
+
+# controller-0の出力
+ubuntu@controller-0:~$ sudo systemctl daemon-reload
+ubuntu@controller-0:~$ sudo systemctl enable kube-apiserver kube-controller-manager kube-scheduler
+Created symlink /etc/systemd/system/multi-user.target.wants/kube-apiserver.service → /etc/systemd/system/kube-apiserver.service.
+Created symlink /etc/systemd/system/multi-user.target.wants/kube-controller-manager.service → /etc/systemd/system/kube-controller-manager.service.
+Created symlink /etc/systemd/system/multi-user.target.wants/kube-scheduler.service → /etc/systemd/system/kube-scheduler.service.
+ubuntu@controller-0:~$ sudo systemctl start kube-apiserver kube-controller-manager kube-scheduler
+ubuntu@controller-0:~$ sleep 10
+ubuntu@controller-0:~$ sudo systemctl status kube-apiserver --no-pager
+● kube-apiserver.service - Kubernetes API Server
+     Loaded: loaded (/etc/systemd/system/kube-apiserver.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2025-10-22 22:43:11 UTC; 27s ago
+       Docs: https://github.com/kubernetes/kubernetes
+   Main PID: 17536 (kube-apiserver)
+      Tasks: 9 (limit: 2218)
+     Memory: 302.0M
+        CPU: 3.310s
+     CGroup: /system.slice/kube-apiserver.service
+             └─17536 /usr/local/bin/kube-apiserver --advertise-address=192.168.8.10 --allow-privileged=true --apis…
+
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: [-]poststarthook/rbac/bootstrap-roles failed: not finished
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: I1022 22:43:16.425237   17536 healthz.go:261] poststarth…readyz
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: [-]poststarthook/rbac/bootstrap-roles failed: not finished
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: I1022 22:43:16.492598   17536 controller.go:624] quota a…k8s.io
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: I1022 22:43:16.524474   17536 healthz.go:261] poststarth…readyz
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: [-]poststarthook/rbac/bootstrap-roles failed: not finished
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: I1022 22:43:16.639181   17536 alloc.go:330] "allocated c….0.1"}
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: W1022 22:43:16.674497   17536 lease.go:265] Resetting en….8.12]
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: I1022 22:43:16.675441   17536 controller.go:624] quota a…points
+Oct 22 22:43:16 controller-0 kube-apiserver[17536]: I1022 22:43:16.702904   17536 controller.go:624] quota a…k8s.io
+Hint: Some lines were ellipsized, use -l to show in full.
+ubuntu@controller-0:~$ sudo systemctl status kube-controller-manager --no-pager
+● kube-controller-manager.service - Kubernetes Controller Manager
+     Loaded: loaded (/etc/systemd/system/kube-controller-manager.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2025-10-22 22:43:11 UTC; 34s ago
+       Docs: https://github.com/kubernetes/kubernetes
+   Main PID: 17537 (kube-controller)
+      Tasks: 5 (limit: 2218)
+     Memory: 87.1M
+        CPU: 531ms
+     CGroup: /system.slice/kube-controller-manager.service
+             └─17537 /usr/local/bin/kube-controller-manager --bind-address=0.0.0.0 --cluster-cidr=10.200.0.0/16 --…
+
+Oct 22 22:43:12 controller-0 kube-controller-manager[17537]: W1022 22:43:12.245345   17537 authentication.go:…work.
+Oct 22 22:43:12 controller-0 kube-controller-manager[17537]: W1022 22:43:12.245576   17537 authorization.go:1…work.
+Oct 22 22:43:12 controller-0 kube-controller-manager[17537]: I1022 22:43:12.248029   17537 controllermanager.…29.1"
+Oct 22 22:43:12 controller-0 kube-controller-manager[17537]: I1022 22:43:12.248191   17537 controllermanager.…CK=""
+Oct 22 22:43:12 controller-0 kube-controller-manager[17537]: I1022 22:43:12.249957   17537 tlsconfig.go:200] "Load…
+Oct 22 22:43:12 controller-0 kube-controller-manager[17537]: I1022 22:43:12.250459   17537 named_certificates.go:5…
+Oct 22 22:43:12 controller-0 kube-controller-manager[17537]: I1022 22:43:12.250644   17537 secure_serving.go:…10257
+Oct 22 22:43:12 controller-0 kube-controller-manager[17537]: I1022 22:43:12.250711   17537 tlsconfig.go:240] …ller"
+Oct 22 22:43:12 controller-0 kube-controller-manager[17537]: I1022 22:43:12.253739   17537 leaderelection.go:…er...
+Oct 22 22:43:13 controller-0 kube-controller-manager[17537]: E1022 22:43:13.856984   17537 leaderelection.go:332] …
+Hint: Some lines were ellipsized, use -l to show in full.
+ubuntu@controller-0:~$ sudo systemctl status kube-scheduler --no-pager
+● kube-scheduler.service - Kubernetes Scheduler
+     Loaded: loaded (/etc/systemd/system/kube-scheduler.service; enabled; vendor preset: enabled)
+     Active: activating (auto-restart) (Result: exit-code) since Wed 2025-10-22 22:43:49 UTC; 194ms ago
+       Docs: https://github.com/kubernetes/kubernetes
+    Process: 17615 ExecStart=/usr/local/bin/kube-scheduler --config=/etc/kubernetes/config/kube-scheduler.yaml --v=2 (code=exited, status=1/FAILURE)
+   Main PID: 17615 (code=exited, status=1/FAILURE)
+        CPU: 300ms
+ubuntu@controller-0:~$
+
+
+```
