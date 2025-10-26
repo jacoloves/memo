@@ -2983,6 +2983,668 @@ metadata:
     kubernetes.io/bootstrapping: rbac-defaults
   name: system:coredns
 rules:
-  - 
+  - apiGroups:
+    - ""
+    resources:
+    - endpoints
+    - services
+    - pods
+    - namespaces
+    verbs:
+    - list
+    - watch
+  - apiGroups:
+    - discovery.k8s.io
+    resources:
+    - endpointslices
+    verbs:
+    - list
+    - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: system:coredns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:coredns
+subjects:
+- kind: ServiceAccount
+  name: coredns
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+      errors
+      health {
+        lameduck 5s
+      }
+      ready
+      kubernetes cluster.local in-addr.arpa ip6.arpa {
+        pods insecure
+        fallthrough in-addr.arpa ip6.arpa
+        ttl 30
+      }
+      prometheus :9153
+      forward . /etc/resolv.conf {
+        max_concurrent 1000
+      }
+      cache 30
+      loop
+      reload
+      loadbalance
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coredns
+  namespace: kube-system
+  labels:
+    k8s-app: kube-dns
+    kubernetes.io/name: "CoreDNS"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      k8s-app: kube-dns
+  template:
+    metadata:
+      labels:
+        k8s-app: kube-dns
+    spec:
+      priorityClassName: system-cluster-critical
+      serviceAccountName: coredns
+      tolerations:
+        - key: "CriticalAddonsOnly"
+          operator: "Exists"
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+      - name: coredns
+        image: coredns/coredns:1.11.1
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            memory: 170Mi
+          requests:
+            cpu: 100m
+            memory: 70Mi
+        args: [ "-conf", "/etc/coredns/Corefile" ]
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/coredns
+          readOnly: true
+        ports:
+        - containerPort: 53
+          name: dns
+          protocol: UDP
+        - containerPort: 53
+          name: dns-tcp
+          protocol: TCP
+        - containerPort: 9153
+          name: metrics
+          protocol: TCP
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_BIND_SERVICE
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 60
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8181
+            scheme: HTTP
+      dnsPolicy: Default
+      volumes:
+        - name: config-volume
+          configMap:
+            name: coredns
+            items:
+            - key: Corefile
+              path: Corefile
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-dns
+  namespace: kube-system
+  annotations:
+    prometheus.io/port: "9153"
+    prometheus.io/scrape: "true"
+  labels:
+    k8s-app: kube-dns
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "CoreDNS"
+spec:
+  selector:
+    k8s-app: kube-dns
+  clusterIP: 10.32.0.10
+  ports:
+  - name: dns
+    port: 53
+    protocol: UDP
+  - name: dns-tcp
+    port: 53
+    protocol: TCP
+  - name: metrics
+    port: 9153
+    protocol: TCP
+EOF
+
+---
+serviceaccount/coredns created
+clusterrole.rbac.authorization.k8s.io/system:coredns created
+clusterrolebinding.rbac.authorization.k8s.io/system:coredns created
+configmap/coredns created
+deployment.apps/coredns created
+service/kube-dns created
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥
 ```
 
+重要: `clusterIP: 10.32.0.10` はkubelet設定の `clusterDNS` と一致させる必要があります。
+
+- デプロイの確認
+pod,service,deploymentの確認
+```
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥ ❯ k get pods -n kube-system -l k8s-app=kube-dns
+NAME                       READY   STATUS    RESTARTS   AGE
+coredns-6d84d9c4b7-bnh7d   1/1     Running   0          42s
+coredns-6d84d9c4b7-tzg6w   1/1     Running   0          42s
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥ ❯ k get service -n kube-system kube-dns
+NAME       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+kube-dns   ClusterIP   10.32.0.10   <none>        53/UDP,53/TCP,9153/TCP   61s
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥ ❯ k get deployment -n kube-system coredns
+NAME      READY   UP-TO-DATE   AVAILABLE   AGE
+coredns   2/2     2            2           84s
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥
+```
+
+- DNS解決のテスト
+busyboxのpodを立てて、busyboxからkubernetesとkube-dns.kube-system.svc.cluster.localにnslookupしてる
+```
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥ ❯ k run busybox --image=busybox:1.28 --command -- sleep 3600
+pod/busybox created
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥ ❯ k9s
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣] took 13s
+♥ ❯ k get bods busybox
+error: the server doesn't have a resource type "bods"
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+❯ k get pods busybox
+NAME      READY   STATUS    RESTARTS   AGE
+busybox   1/1     Running   0          37s
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥ ❯ k exec busybox -- nslookup kubernetes
+Server:    10.32.0.10
+Address 1: 10.32.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      kubernetes
+Address 1: 10.32.0.1 kubernetes.default.svc.cluster.local
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥ ❯ k exec busybox -- nslookup kube-dns.kube-system.svc.cluster.local
+Server:    10.32.0.10
+Address 1: 10.32.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      kube-dns.kube-system.svc.cluster.local
+Address 1: 10.32.0.10 kube-dns.kube-system.svc.cluster.local
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?⇣]
+♥
+```
+
+## ステップ13: Smoke Test
+### テスト項目
+1. Data Encryption（データ暗号化）
+2. Deployments（デプロイメント）
+3. Port Forwarding（ポート転送）
+4. Logs（ログ取得）
+5. Exec（コマンド実行）
+6. Services（サービス）
+
+- 1. Data Encryptionのテスト
+etcd内のSecretが暗号化されているか確認します。
+```
+kubectl create secret generic kubernetes-the-hard-way \
+  --from-literal="mykey=mydata"
+
+---
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+♥ ❯ kubectl create secret generic kubernetes-the-hard-way \
+  --from-literal="mykey=mydata"
+
+secret/kubernetes-the-hard-way created
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+♥
+```
+
+- etcd内のデータを確認（controller-0で）
+gateway-01 -> controller-0にssh
+
+```
+sudo ETCDCTL_API=3 etcdctl get \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/ca.pem \
+  --cert=/etc/etcd/kubernetes.pem \
+  --key=/etc/etcd/kubernetes-key.pem \
+  /registry/secrets/default/kubernetes-the-hard-way | hexdump -C
+
+---
+ubuntu@controller-0:~$ sudo ETCDCTL_API=3 etcdctl get \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/ca.pem \
+  --cert=/etc/etcd/kubernetes.pem \
+  --key=/etc/etcd/kubernetes-key.pem \
+  /registry/secrets/default/kubernetes-the-hard-way | hexdump -C
+[sudo] password for ubuntu:
+00000000  2f 72 65 67 69 73 74 72  79 2f 73 65 63 72 65 74  |/registry/secret|
+00000010  73 2f 64 65 66 61 75 6c  74 2f 6b 75 62 65 72 6e  |s/default/kubern|
+00000020  65 74 65 73 2d 74 68 65  2d 68 61 72 64 2d 77 61  |etes-the-hard-wa|
+00000030  79 0a 6b 38 73 3a 65 6e  63 3a 61 65 73 63 62 63  |y.k8s:enc:aescbc|
+00000040  3a 76 31 3a 6b 65 79 31  3a d7 e6 e5 cc 20 98 21  |:v1:key1:.... .!|
+00000050  b4 ba 54 56 c1 15 47 bb  5b f3 f9 6a 66 d8 8e ef  |..TV..G.[..jf...|
+00000060  02 20 95 cd f4 2b be 0c  1f e8 37 a5 70 05 e5 8a  |. ...+....7.p...|
+00000070  b7 55 76 64 9f 97 b8 c0  e1 55 8f 4f 0c ba c3 de  |.Uvd.....U.O....|
+00000080  bb 93 fd 08 d4 37 11 31  20 13 82 6f 3d 10 68 f8  |.....7.1 ..o=.h.|
+00000090  f6 71 6e 38 ba 8e 0d 79  6a f9 15 ba 9f e5 f1 03  |.qn8...yj.......|
+000000a0  66 e9 e2 6a 5c 45 6e 2e  fc 76 c3 14 32 17 f9 8a  |f..j\En..v..2...|
+000000b0  87 a1 89 22 c0 27 f9 f2  6e bb da bc 4f 73 66 6c  |...".'..n...Osfl|
+000000c0  4a 9a ee 72 a3 0a 62 0c  71 4d 21 26 ee 26 b7 bf  |J..r..b.qM!&.&..|
+000000d0  96 f5 62 18 8c 03 d0 7d  02 16 09 02 1f d3 05 1c  |..b....}........|
+000000e0  36 88 2d 04 87 c3 95 e2  8e 0b ce f6 85 8b ee 64  |6.-............d|
+000000f0  55 bd 3b 95 80 5f 1b d9  e1 11 74 ec d5 5d 32 5f  |U.;.._....t..]2_|
+00000100  81 de a6 8d e3 e3 bd 1e  45 b0 ff c2 39 63 ec 2d  |........E...9c.-|
+00000110  c8 3a 57 70 18 98 a2 df  51 8c 04 5a 24 e4 cb f8  |.:Wp....Q..Z$...|
+00000120  9f c7 e5 84 fe 29 60 20  50 df da 5e f3 06 05 9b  |.....)` P..^....|
+00000130  79 68 7d 88 6b 7d 29 4d  a9 c5 a4 22 72 0c 37 06  |yh}.k})M..."r.7.|
+00000140  93 6a 8a 3b 49 94 19 ee  5f ae c4 37 e8 67 d6 65  |.j.;I..._..7.g.e|
+00000150  4b 75 4a e8 6b 69 fc d4  1f 0a                    |KuJ.ki....|
+0000015a
+ubuntu@controller-0:~$
+
+```
+重要: 出力が `k8s:enc:aescbc:v1:key1:` で始まっていれば、暗号化されています！✅
+平文の `mydata` が表示されていなければOKです。
+
+- 2. Deploymentsのテスト
+- nginxデプロイメントの作成
+```
+kubectl create deployment nginx --image=nginx:latest
+kubectl get pods -l app=nginx
+
+---
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+♥ ❯ kubectl create deployment nginx --image=nginx:latest
+
+deployment.apps/nginx created
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+♥ ❯ kubectl get pods -l app=nginx
+
+NAME                     READY   STATUS    RESTARTS   AGE
+nginx-56fcf95486-nqght   1/1     Running   0          12s
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+♥
+```
+
+- 3. Port Forwardingのテスト
+- nginxへのポート転送
+```
+POD_NAME=$(kubectl get pods -l app=nginx -o jsonpath="{.items[0].metadata.name}")
+kubectl port-forward $POD_NAME 8080:80 &
+
+curl --head http://127.0.0.1:8080
+
+---
+on ☸ admin on kubernetes-the-hard-way in default () haskell-sandbox/playground/algogogo on  master via λ took 7d11h24m36s
+♥ ❯ curl --head http://127.0.0.1:8080
+
+HTTP/1.1 200 OK
+Server: nginx/1.29.2
+Date: Sat, 25 Oct 2025 23:37:30 GMT
+Content-Type: text/html
+Content-Length: 615
+Last-Modified: Tue, 07 Oct 2025 17:04:07 GMT
+Connection: keep-alive
+ETag: "68e54807-267"
+Accept-Ranges: bytes
+
+
+on ☸ admin on kubernetes-the-hard-way in default () haskell-sandbox/playground/algogogo on  master via λ
+♥
+```
+
+- ポート転送を停止
+```
+pkill -f "fort-forward"
+```
+
+- 4. Logsのテスト
+```
+# nginxのログ
+kubectl logs $POD_NAME
+
+---
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦ ♥ ❯ kubectl logs $POD_NAME
+
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+/docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+/docker-entrypoint.sh: Configuration complete; ready for start up
+2025/10/25 23:33:15 [notice] 1#1: using the "epoll" event method
+2025/10/25 23:33:15 [notice] 1#1: nginx/1.29.2
+2025/10/25 23:33:15 [notice] 1#1: built by gcc 14.2.0 (Debian 14.2.0-19)
+2025/10/25 23:33:15 [notice] 1#1: OS: Linux 5.15.0-157-generic
+2025/10/25 23:33:15 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+2025/10/25 23:33:15 [notice] 1#1: start worker processes
+2025/10/25 23:33:15 [notice] 1#1: start worker process 29
+2025/10/25 23:33:15 [notice] 1#1: start worker process 30
+127.0.0.1 - - [25/Oct/2025:23:37:30 +0000] "HEAD / HTTP/1.1" 200 0 "-" "curl/8.7.1" "-"
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦
+```
+
+- 5. Execのテスト
+- Pod内でコマンド実行
+```
+kubectl exec -ti $POD_NAME -- nginx -v
+
+---
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦ ♥ ❯ kubectl exec -ti $POD_NAME -- nginx -v
+
+nginx version: nginx/1.29.2
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦
+```
+
+- 6. Servicesのテスト
+- NodePort Serviceの作成
+```
+kubectl expose deployment nginx --port 80 --type NodePort
+kubectl get service nginx
+
+---
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦ ♥ ❯ kubectl expose deployment nginx --port 80 --type NodePort
+
+service/nginx exposed
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦ ♥ ❯ kubectl get service nginx
+
+NAME    TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)        AGE
+nginx   NodePort   10.32.0.189   <none>        80:31531/TCP   22s
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦
+```
+
+- NodePort経由でのアクセステスト
+```
+NODE_PORT=$(kubectl get service nginx \
+  -o jsonpath="{.spec.ports[0].nodePort}")
+
+echo "NodePort: $NODE_PORT"
+
+# worker-0経由でアクセス
+curl -I http://192.168.8.20:$NODE_PORT
+
+# worker-1経由でアクセス
+curl -I http://192.168.8.21:$NODE_PORT
+
+# worker-2経由でアクセス
+curl -I http://192.168.8.22:$NODE_PORT
+
+---
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦ ♥ ❯ NODE_PORT=$(kubectl get service nginx \
+  -o jsonpath="{.spec.ports[0].nodePort}")
+
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦ ♥ ❯ echo "NodePort: $NODE_PORT"
+
+NodePort: 31531
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦ ♥ ❯ curl -I http://192.168.8.20:$NODE_PORT
+
+^C
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?] took 35s
+✦ ❯ curl -I http://192.168.8.21:$NODE_PORT
+
+^C
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?] took 2s
+✦ ❯ curl -I http://192.168.8.22:$NODE_PORT
+
+^C
+
+on ☸ admin on kubernetes-the-hard-way in default () new_lab/2025/kubernetes-hard-way on  master [?]
+✦
+```
+[Warning] workerノードに繋がらない
+
+- 7. 外部からのアクセステスト（オプション）
+gateway-01で実行
+```
+NODE_PORT=31531
+sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 192.168.8.20:$NODE_PORT
+sudo netfilter-persistent save
+
+---
+ubuntu@gateway-01:~$ NODE_PORT=31531
+ubuntu@gateway-01:~$ sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 192.168.8.20:$NODE_PORT
+[sudo] password for ubuntu:
+ubuntu@gateway-01:~$ sudo netfilter-persistent save
+run-parts: executing /usr/share/netfilter-persistent/plugins.d/15-ip4tables save
+run-parts: executing /usr/share/netfilter-persistent/plugins.d/25-ip6tables save
+u
+```
+
+
+workerノードに接続できなかったのはPod Network Routesが不完全だったことが原因でした。
+### 調査から
+1. tcpdump: SYNパケットは到達するが、SYN-ACKが返らない
+2. iptablesルール: 正しく設定されている
+3. Podへの直接アクセス失敗: curl http://10.200.1.3:80 がタイムアウト
+  - → これで「Pod間通信の問題」だと判明
+
+### 解決方法
+各workerノードに他のworkerのPod CIDRへのルートを追加
+
+- 作業ログ
+```
+ubuntu@worker-0:~$ ip route
+default via 192.168.8.1 dev ens18 proto static
+10.200.0.0/24 dev cnio0 proto kernel scope link src 10.200.0.1
+192.168.8.0/24 dev ens18 proto kernel scope link src 192.168.8.20
+ubuntu@worker-0:~$ sudo ip route add 10.200.1.0/24 via 192.168.8.21
+ubuntu@worker-0:~$ sudo ip route add 10.200.2.0/24 via 192.168.8.22
+ubuntu@worker-0:~$ ip route
+default via 192.168.8.1 dev ens18 proto static
+10.200.0.0/24 dev cnio0 proto kernel scope link src 10.200.0.1
+10.200.1.0/24 via 192.168.8.21 dev ens18
+10.200.2.0/24 via 192.168.8.22 dev ens18
+192.168.8.0/24 dev ens18 proto kernel scope link src 192.168.8.20
+ubuntu@worker-0:~$ sudo vim  /etc/netplan/01-netcfg.yaml
+ubuntu@worker-0:~$ sudo netplan apply
+
+** (generate:39850): WARNING **: 00:56:01.769: Permissions for /etc/netplan/01-netcfg.yaml are too open. Netplan configuration should NOT be accessible by others.
+WARNING:root:Cannot call Open vSwitch: ovsdb-server.service is not running.
+
+** (process:39848): WARNING **: 00:56:01.976: Permissions for /etc/netplan/01-netcfg.yaml are too open. Netplan configuration should NOT be accessible by others.
+
+** (process:39848): WARNING **: 00:56:02.106: Permissions for /etc/netplan/01-netcfg.yaml are too open. Netplan configuration should NOT be accessible by others.
+
+** (process:39848): WARNING **: 00:56:02.106: Permissions for /etc/netplan/01-netcfg.yaml are too open. Netplan configuration should NOT be accessible by others.
+ubuntu@worker-0:~$ curl -I http://10.200.1.3:80
+HTTP/1.1 200 OK
+Server: nginx/1.29.2
+Date: Sun, 26 Oct 2025 00:56:11 GMT
+Content-Type: text/html
+Content-Length: 615
+Last-Modified: Tue, 07 Oct 2025 17:04:07 GMT
+Connection: keep-alive
+ETag: "68e54807-267"
+Accept-Ranges: bytes
+
+ubuntu@worker-0:~$ curl -I http://192.168.8.20:31531
+HTTP/1.1 200 OK
+Server: nginx/1.29.2
+Date: Sun, 26 Oct 2025 00:56:15 GMT
+Content-Type: text/html
+Content-Length: 615
+Last-Modified: Tue, 07 Oct 2025 17:04:07 GMT
+Connection: keep-alive
+ETag: "68e54807-267"
+Accept-Ranges: bytes
+
+ubuntu@worker-0:~$
+
+```
+
+これにて完了！🎊
+
+---
+
+## 達成したこと
+あなたは以下をゼロから手動で構築しました：
+### Infrastructure
+- 7台のVM（1 gateway + 3 controllers + 3 workers）
+- 2つのネットワーク（パブリック + プライベート）
+- NAT Gateway + Load Balancer
+
+### Kubernetes Control Plane
+- 高可用性etcdクラスター（3ノード）
+- kube-apiserver（3ノード）
+- kube-controller-manager（3ノード）
+- kube-scheduler（3ノード）
+
+### Kubernetes Workers
+- containerd（コンテナランタイム）
+- kubelet（3ノード）
+- kube-proxy（3ノード）
+- CNIネットワーク
+
+### Security & Networking
+- PKI infrastructure（20個の証明書）
+- TLS暗号化通信
+- RBAC認証
+- Secret暗号化
+- Pod Network Routes
+- HAProxy（ロードバランシング）
+
+### Add-ons
+- CoreDNS（クラスター内DNS）
+
+---
+
+## 学んだこと
+このチュートリアルを通して、以下を深く理解できました：
+
+1. Kubernetesのアーキテクチャ
+- Control PlaneとWorker Nodesの役割
+- 各コンポーネントの連携
+
+
+2. PKI/TLS証明書
+- 証明書の生成と配布
+- 相互認証の仕組み
+
+
+3. ネットワーク
+- Pod CIDR、Service CIDR
+- ルーティング、NAT
+- NodePort、ClusterIP
+
+
+4. セキュリティ
+- RBAC
+- データ暗号化
+- ネットワーク分離
+
+
+5. 高可用性
+- etcdクラスタリング
+- リーダー選出
+- ロードバランシング
+
+---
+
+### 今後の学び
+1. Ingress Controllerの追加
+- nginx-ingress、Traefik等
+
+2. Persistent Volumeの設定
+- ストレージの永続化
+
+3. Monitoring & Logging
+- Prometheus + Grafana
+- EFK Stack
+
+4. GitOpsの導入
+- ArgoCD、Flux
+
+5. Service Mesh
+- Istio、Linkerd
+
+
+6. 本番環境への応用
+- クラウド環境での構築
+- オートスケーリング
+- バックアップ・リストア
